@@ -1,0 +1,26 @@
+name: final_year_research_project
+
+dependencies:
+  flutter:
+    sdk: flutter
+  frontend:
+    path: ../ # Ensure this path is correct
+  
+  # New dependencies for the project:
+  image_picker: ^1.0.4  # For selecting images for the People Manager
+  # We use the latest stable versions for compatibility.
+  # Note: The 'camera' package often requires platform-specific setup (Android/iOS).
+  # camera: ^0.10.5+9 
+  # For simplicity and to make the frontend run without platform setup errors initially, 
+  # I'll omit the camera package here, but you should uncomment/add it later 
+  # when you implement the live camera feed.
+
+  # The following line is needed if you intend to use the images after picking them:
+  # path_provider: ^2.1.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+environment:
+  sdk: '^3.9.0'
