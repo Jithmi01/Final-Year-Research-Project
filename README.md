@@ -2,7 +2,6 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>README - Smart Assistive Mobile App for Visually Impaired</title>
 </head>
 <body>
 
