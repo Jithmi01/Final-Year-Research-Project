@@ -1,30 +1,43 @@
+//lib main
+
 import 'package:flutter/material.dart';
-import 'home_page.dart';
+import 'screens/home_screen.dart';
 
 void main() {
-  runApp(const MyApp());
+  runApp(const BlindAssistantApp());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class BlindAssistantApp extends StatelessWidget {
+  const BlindAssistantApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Vision Assistant',
+      title: 'Blind Assistant',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        // Accessible color scheme
         primarySwatch: Colors.blue,
-        // Large, clear text for visually impaired
-        textTheme: const TextTheme(
-          titleLarge: TextStyle(fontSize: 24.0, fontWeight: FontWeight.bold),
-          bodyMedium: TextStyle(fontSize: 18.0),
+        useMaterial3: true,
+        brightness: Brightness.light,
+        scaffoldBackgroundColor: Colors.grey[50],
+        appBarTheme: const AppBarTheme(
+          centerTitle: true,
+          elevation: 0,
+          backgroundColor: Colors.blue,
+          foregroundColor: Colors.white,
         ),
-        // Use a high contrast theme for better visibility
-        visualDensity: VisualDensity.adaptivePlatformDensity,
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+            textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
+
       ),
-      home: const HomePage(),
+      home: const HomeScreen(),
     );
   }
 }

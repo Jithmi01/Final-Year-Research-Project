@@ -1,26 +1,47 @@
-name: final_year_research_project
+name: blind_assistant_app
+description: A mobile app for blind users with AI-powered face detection features
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
 
 dependencies:
   flutter:
     sdk: flutter
-  frontend:
-    path: ../ # Ensure this path is correct
-  
-  # New dependencies for the project:
-  image_picker: ^1.0.4  # For selecting images for the People Manager
-  # We use the latest stable versions for compatibility.
-  # Note: The 'camera' package often requires platform-specific setup (Android/iOS).
-  # camera: ^0.10.5+9 
-  # For simplicity and to make the frontend run without platform setup errors initially, 
-  # I'll omit the camera package here, but you should uncomment/add it later 
-  # when you implement the live camera feed.
 
-  # The following line is needed if you intend to use the images after picking them:
-  # path_provider: ^2.1.1
+  # Camera & Image
+  camera: ^0.11.0
+  image_picker: ^1.1.2
+  image: ^4.1.7
+
+  # HTTP & API
+  http: ^1.2.0
+  dio: ^5.4.3
+
+  # Text-to-Speech
+  flutter_tts: ^4.0.2
+
+  # Speech Recognition
+  speech_to_text: ^7.0.0
+
+  # UI
+  cupertino_icons: ^1.0.6
+
+  # Permissions
+  permission_handler: ^11.3.1
+
+  # State Management
+  provider: ^6.1.2
+
+  # Storage
+  shared_preferences: ^2.3.2
+  path_provider: ^2.1.4
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  flutter_lints: ^4.0.0
 
-environment:
-  sdk: '^3.9.0'
+flutter:
+  uses-material-design: true
