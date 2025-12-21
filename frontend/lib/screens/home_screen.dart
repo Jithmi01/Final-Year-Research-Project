@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import 'age_gender_screen.dart';
 import 'face_recognition_screen.dart';
+import 'attributes_screen.dart';
 import '../services/api_service.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -189,7 +191,12 @@ class _HomeScreenState extends State<HomeScreen> {
                             color: Colors.blue,
                             onTap: () {
                               if (isServerConnected) {
-                               ;
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => const AgeGenderScreen(),
+                                  ),
+                                );
                               } else {
                                 _speak("Please connect to server first");
                                 ScaffoldMessenger.of(context).showSnackBar(
@@ -230,7 +237,12 @@ class _HomeScreenState extends State<HomeScreen> {
                             color: Colors.orange,
                             onTap: () {
                               if (isServerConnected) {
-                               ;
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => const AttributesScreen(),
+                                  ),
+                                );
                               } else {
                                 _speak("Please connect to server first");
                                 ScaffoldMessenger.of(context).showSnackBar(

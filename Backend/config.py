@@ -13,16 +13,34 @@ class Config:
     MONGODB_DB_NAME = os.getenv('MONGODB_DB_NAME', 'blind_assistant')
     
     # Upload settings
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
     UPLOAD_FOLDER = 'uploads'
     ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
     
     # Model paths
     #AGE_GENDER_MODEL_PATH = 'models/final_model_20251130-230919.h5'
-    ACCESSORIES_MODEL_PATH = 'models/accessories_model.h5'
-    EYEWEAR_MODEL_PATH = 'models/new_eyeware_model.h5'
-    FACEWEAR_MODEL_PATH = 'models/faceware_model.h5'
-    HEADWEAR_MODEL_PATH = 'models/headware_model.h5'
-    NOWEAR_MODEL_PATH = 'models/noware_model.h5'
+    # Model paths
+    ACCESSORIES_MODEL_PATH = os.path.join(BASE_DIR, "models/accessories_model.h5")
+    EYEWEAR_MODEL_PATH = os.path.join(BASE_DIR, "models/new_eyeware_model.h5")
+    FACEWEAR_MODEL_PATH = os.path.join(BASE_DIR, "models/faceware_model.h5")
+    HEADWEAR_MODEL_PATH = os.path.join(BASE_DIR, "models/headware_model.h5")
+    NOWEAR_MODEL_PATH = os.path.join(BASE_DIR, "models/noware_model.h5")
+
+        # Face detection
+    FACE_CASCADE_PATH = os.path.join(BASE_DIR, "haarcascade_frontalface_default.xml")
+    
+    # Detection settings
+    ATTR_IMG_SIZE = 224 
+    CONFIDENCE_THRESHOLDS = {
+        'accessories': 0.60,
+        'eyewear': 0.65,
+        'facewear': 0.60,
+        'headwear': 0.55,
+        'nowear': 0.50
+    }
+    MIN_CONFIDENCE_GAP = 0.15
+
     
     # Face recognition settings
     KNOWN_FACES_DIR = 'data/known_faces'
