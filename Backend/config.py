@@ -48,7 +48,7 @@ class Config:
     # ========================================================================
     # SMART WALLET - MODEL PATHS
     # ========================================================================
-    CURRENCY_MODEL_PATH = r'"E:/research/New folder/smart-wallet-backend/models/currency_model/New folder/best (5).pt"'
+    CURRENCY_MODEL_PATH = r'E:/research/New folder/smart-wallet-backend/models/currency_model/New folder/best.pt'
     OLD_YOLO_MODEL_PATH = r'E:/research/New folder/smart-wallet-backend/models/new_model/sroie/best (6).pt'
     NEW_YOLO_MODEL_PATH = r'E:/currency/python_backend/models/new_model/best.pt'
     
