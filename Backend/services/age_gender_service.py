@@ -1,19 +1,19 @@
+# FILE: services/age_gender_service.py
 import cv2
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras.models import load_model
-from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.applications import EfficientNetV2S
-from tensorflow.keras.layers import GlobalAveragePooling2D, Dense, Dropout
-from tensorflow.keras.models import Model
+
+# Use TensorFlow's Keras directly (most compatible)
+from tensorflow import keras
+from tensorflow.keras import layers, models, optimizers
+
 from config import Config
 import logging
 
 logger = logging.getLogger(__name__)
 
-# Fix DepthwiseConv2D issues in older TF versions
-from tensorflow.keras.layers import DepthwiseConv2D as KerasDepthwiseConv2D
-class DepthwiseConv2D(KerasDepthwiseConv2D):
+# Fix DepthwiseConv2D issues
+class DepthwiseConv2D(layers.DepthwiseConv2D):
     def __init__(self, *args, **kwargs):
         kwargs.pop("groups", None)
         super().__init__(*args, **kwargs)
@@ -39,15 +39,15 @@ class AgeGenderService:
 
     def _load_model(self):
         try:
-            logger.info("Loading model...")
-            model = load_model(
+            logger.info("Loading Age & Gender model...")
+            model = keras.models.load_model(
                 Config.AGE_GENDER_MODEL_PATH, 
                 compile=False,
                 custom_objects={"DepthwiseConv2D": DepthwiseConv2D}
             )
 
             model.compile(
-                optimizer=Adam(learning_rate=0.0003),
+                optimizer=optimizers.Adam(learning_rate=0.0003),
                 loss={
                     "gender": "binary_crossentropy",
                     "age": "sparse_categorical_crossentropy"
@@ -62,26 +62,31 @@ class AgeGenderService:
             logger.info("Trying rebuild + load weights...")
 
             # Rebuild architecture
-            base = EfficientNetV2S(include_top=False, weights=None,
-                                    input_shape=(self.IMG_SIZE, self.IMG_SIZE, 3))
-            x = GlobalAveragePooling2D()(base.output)
-            x = Dense(256, activation="swish")(x)
-            x = Dropout(0.25)(x)
+            from tensorflow.keras.applications import EfficientNetV2S
+            
+            base = EfficientNetV2S(
+                include_top=False, 
+                weights=None,
+                input_shape=(self.IMG_SIZE, self.IMG_SIZE, 3)
+            )
+            x = layers.GlobalAveragePooling2D()(base.output)
+            x = layers.Dense(256, activation="swish")(x)
+            x = layers.Dropout(0.25)(x)
 
             # Gender head
-            g = Dense(64, activation="swish")(x)
-            g = Dropout(0.15)(g)
-            gender_out = Dense(1, activation="sigmoid", name="gender")(g)
+            g = layers.Dense(64, activation="swish")(x)
+            g = layers.Dropout(0.15)(g)
+            gender_out = layers.Dense(1, activation="sigmoid", name="gender")(g)
 
             # Age head
-            a = Dense(128, activation="swish")(x)
-            a = Dropout(0.20)(a)
-            age_out = Dense(8, activation="softmax", name="age")(a)
+            a = layers.Dense(128, activation="swish")(x)
+            a = layers.Dropout(0.20)(a)
+            age_out = layers.Dense(8, activation="softmax", name="age")(a)
 
-            model = Model(inputs=base.input, outputs=[gender_out, age_out])
+            model = models.Model(inputs=base.input, outputs=[gender_out, age_out])
             model.load_weights(Config.AGE_GENDER_MODEL_PATH)
             model.compile(
-                optimizer=Adam(learning_rate=0.0003),
+                optimizer=optimizers.Adam(learning_rate=0.0003),
                 loss={"gender": "binary_crossentropy", "age": "sparse_categorical_crossentropy"},
                 loss_weights={"gender": 0.4, "age": 0.6},
                 metrics={"gender": "accuracy", "age": "accuracy"}

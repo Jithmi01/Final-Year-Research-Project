@@ -1,23 +1,27 @@
+# FILE: services/attributes_service.py
+
 import cv2
 import numpy as np
-from tensorflow.keras.models import load_model
+import tensorflow as tf
+from tensorflow import keras
+
 from config import Config
 
 class AttributesService:
     def __init__(self):
         print("Loading attribute models...")
         self.models = {
-            'accessories': load_model(Config.ACCESSORIES_MODEL_PATH, compile=False),
-            'eyewear': load_model(Config.EYEWEAR_MODEL_PATH, compile=False),
-            'facewear': load_model(Config.FACEWEAR_MODEL_PATH, compile=False),
-            'headwear': load_model(Config.HEADWEAR_MODEL_PATH, compile=False),
-            'nowear': load_model(Config.NOWEAR_MODEL_PATH, compile=False)
+            'accessories': keras.models.load_model(Config.ACCESSORIES_MODEL_PATH, compile=False),
+            'eyewear': keras.models.load_model(Config.EYEWEAR_MODEL_PATH, compile=False),
+            'facewear': keras.models.load_model(Config.FACEWEAR_MODEL_PATH, compile=False),
+            'headwear': keras.models.load_model(Config.HEADWEAR_MODEL_PATH, compile=False),
+            'nowear': keras.models.load_model(Config.NOWEAR_MODEL_PATH, compile=False)
         }
 
         self.attributes = {
             'accessories': ['earrings', 'necklace', 'no_accessories', 'piercings'],
-            'eyewear': [ 'eyecover','eyeglasses', 'no_eyewear', 'sunglasses'],
-            'facewear': [ 'covered','fullmask', 'mouthmask', 'no_facewear'],
+            'eyewear': ['eyecover', 'eyeglasses', 'no_eyewear', 'sunglasses'],
+            'facewear': ['covered', 'fullmask', 'mouthmask', 'no_facewear'],
             'headwear': ['headtop', 'helmet', 'hoodie', 'no_headwear'],
             'nowear': ['facemarks', 'facepaint', 'facialhair', 'plain']
         }
@@ -60,7 +64,7 @@ class AttributesService:
         confidences = {}
         for model_name in self.models.keys():
             attr, conf, gap, probs = self.predict_attribute(face_img_rgb, model_name)
-            confidences[model_name] = {'attribute': attr, 'confidence': round(conf, 4), 'gap': round(gap,4)}
+            confidences[model_name] = {'attribute': attr, 'confidence': round(conf, 4), 'gap': round(gap, 4)}
             threshold = Config.CONFIDENCE_THRESHOLDS[model_name]
             if conf >= threshold and gap >= Config.MIN_CONFIDENCE_GAP:
                 if attr not in ['plain', 'no_accessories', 'no_eyewear', 'no_facewear', 'no_headwear']:
@@ -83,11 +87,11 @@ class AttributesService:
         return "Person is " + " and ".join(parts)
 
     def extract_face_region(self, frame_rgb, x, y, w, h):
-        pad = int(0.35*h)
-        x1 = max(0, x-pad)
-        y1 = max(0, y-pad)
-        x2 = min(frame_rgb.shape[1], x+w+pad)
-        y2 = min(frame_rgb.shape[0], y+h+pad)
+        pad = int(0.35 * h)
+        x1 = max(0, x - pad)
+        y1 = max(0, y - pad)
+        x2 = min(frame_rgb.shape[1], x + w + pad)
+        y2 = min(frame_rgb.shape[0], y + h + pad)
         return frame_rgb[y1:y2, x1:x2]
 
     def detect_from_image(self, image_path):
@@ -96,12 +100,18 @@ class AttributesService:
             return {'error': 'Cannot read image'}
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        faces = self.face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(100,100))
-        if len(faces)==0:
-            return {'error':'No face detected'}
-        x,y,w,h = faces[0]
+        faces = self.face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(100, 100))
+        if len(faces) == 0:
+            return {'error': 'No face detected'}
+        x, y, w, h = faces[0]
         face_rgb = self.extract_face_region(frame_rgb, x, y, w, h)
         face_rgb = self.enhance_face(face_rgb)
         detected, confidences = self.detect_attributes(face_rgb)
         announcement = self.format_announcement(detected)
-        return {'attributes': detected, 'confidences': confidences, 'announcement': announcement, 'faces_detected': len(faces), 'face_location': {'x':int(x),'y':int(y),'w':int(w),'h':int(h)}}
+        return {
+            'attributes': detected,
+            'confidences': confidences,
+            'announcement': announcement,
+            'faces_detected': len(faces),
+            'face_location': {'x': int(x), 'y': int(y), 'w': int(w), 'h': int(h)}
+        }

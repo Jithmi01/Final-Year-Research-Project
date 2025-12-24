@@ -1,3 +1,4 @@
+# FILE: routes/attributes_routes.py
 from flask import Blueprint, request, jsonify
 import os
 from werkzeug.utils import secure_filename
