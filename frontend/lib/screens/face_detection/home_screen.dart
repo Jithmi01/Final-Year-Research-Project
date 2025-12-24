@@ -3,7 +3,7 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'age_gender_screen.dart';
 import 'face_recognition_screen.dart';
 import 'attributes_screen.dart';
-import '../services/api_service.dart';
+import '../../services/api_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -35,33 +35,42 @@ class _HomeScreenState extends State<HomeScreen> {
     await flutterTts.speak(text);
   }
 
-  Future<void> _checkServerConnection() async {
-    setState(() {
-      isCheckingConnection = true;
-    });
+Future<void> _checkServerConnection() async {
+  setState(() {
+    isCheckingConnection = true;
+  });
 
-    bool connected = await ApiService.checkHealth();
+  print('🔍 Checking server health...');
+  
+  // Call the test connection for detailed info
+  var testResult = await ApiService.testConnection();
+  print('📡 Test result: ${testResult['message']}');
+  
+  bool connected = await ApiService.checkHealth();
+  print('✅ Health check result: $connected');
 
-    setState(() {
-      isServerConnected = connected;
-      isCheckingConnection = false;
-    });
+  setState(() {
+    isServerConnected = connected;
+    isCheckingConnection = false;
+  });
 
-    if (!connected) {
-      _speak("Warning: Backend server is not connected. Please start the Flask server.");
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Backend server not connected. Please start Flask server.'),
-            backgroundColor: Colors.red,
-            duration: Duration(seconds: 5),
-          ),
-        );
-      }
-    } else {
-      _speak("Welcome to Blind Assistant. Server connected successfully.");
+  if (!connected) {
+    print('❌ Connection failed!');
+    _speak("Warning: Backend server is not connected. Please start the Flask server.");
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Server error: ${testResult['message']}'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 5),
+        ),
+      );
     }
+  } else {
+    print('✅ Connected successfully!');
+    _speak("Welcome to Blind Assistant. Server connected successfully.");
   }
+}
 
   Widget _buildFeatureCard({
     required String title,
