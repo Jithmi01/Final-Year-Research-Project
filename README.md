@@ -66,14 +66,14 @@ The system consists of four major components:
 
 <ol>
   <li>
-    <h3>Smart Vision Assistant</h3>
+    <h3>Voice-Guided Intelligent Vision Assistant</h3>
     <p>
-      
+      Powered by computer vision and machine learning to detect and identify people in real time, distinguishing between known and unknown individuals while estimating their position and distance. The system detects human attributes such as age, gender, eyewear, headwear, mouthwear, and accessories. Based on user voice instructions, it selectively announces the relevant person’s details through audio output, enabling hands-free and accessible environmental awareness for visually impaired users.
     </p>
   </li>
-
+ 
   <li>
-    <h3>Voice-Interactive Smart Reader</h3>
+    <h3>Voice-Interactive Smart Currency & Document Reader</h3>
     <p>
       Powered by OCR and NLP to read printed or handwritten text, recognize currency, and categorize 
       transactions automatically. Includes speech-to-text and text-to-speech features for complete hands-free use.
@@ -81,7 +81,7 @@ The system consists of four major components:
   </li>
 
   <li>
-    <h3>Emotion-Adaptive AI Navigation Stick</h3>
+    <h3>Voice-Adaptive AI Navigation Stick</h3>
     <p>
       Provides intelligent navigation through real-time scene understanding, obstacle detection, and 
       user behavior learning. Adapts guidance cues based on the user’s emotional state and environment, 
