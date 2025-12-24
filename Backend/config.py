@@ -48,15 +48,15 @@ class Config:
     # ========================================================================
     # SMART WALLET - MODEL PATHS
     # ========================================================================
-    CURRENCY_MODEL_PATH = r'E:/research/New folder/smart-wallet-backend/models/currency_model/New folder/best.pt'
-    OLD_YOLO_MODEL_PATH = r'E:/research/New folder/smart-wallet-backend/models/new_model/sroie/best (6).pt'
-    NEW_YOLO_MODEL_PATH = r'E:/currency/python_backend/models/new_model/best.pt'
+    CURRENCY_MODEL_PATH = os.path.join(BASE_DIR, "models", "Currency", "currency.pt")
+    OLD_YOLO_MODEL_PATH = os.path.join(BASE_DIR, "models", "Sroie", "sroie.pt")
+    NEW_YOLO_MODEL_PATH = os.path.join(BASE_DIR, "models", "Cord_dataset", "best.pt")
     
     # ========================================================================
     # BLIND ASSISTANT - MODEL PATHS
     # ========================================================================
     # Age & Gender Detection
-    AGE_GENDER_MODEL_PATH = r'E:\research\New folder\smart-wallet-backend\models\final_model_20251201-102857.h5'
+    AGE_GENDER_MODEL_PATH = os.path.join(BASE_DIR, "models", "final_model_20251201-102857.h5")
    
     # Attributes Detection
     ACCESSORIES_MODEL_PATH = os.path.join(BASE_DIR, "models/accessories_model.h5")
@@ -175,3 +175,23 @@ class Config:
             os.makedirs(directory, exist_ok=True)
         
         print("[CONFIG] ✓ All required directories created")
+    
+    @staticmethod
+    def verify_model_paths():
+        """Verify that expected model files exist and log missing ones"""
+        paths = {
+            'CURRENCY_MODEL_PATH': Config.CURRENCY_MODEL_PATH,
+            'OLD_YOLO_MODEL_PATH': Config.OLD_YOLO_MODEL_PATH,
+            'NEW_YOLO_MODEL_PATH': Config.NEW_YOLO_MODEL_PATH,
+            'AGE_GENDER_MODEL_PATH': Config.AGE_GENDER_MODEL_PATH,
+            'ACCESSORIES_MODEL_PATH': Config.ACCESSORIES_MODEL_PATH,
+            'EYEWEAR_MODEL_PATH': Config.EYEWEAR_MODEL_PATH,
+            'FACEWEAR_MODEL_PATH': Config.FACEWEAR_MODEL_PATH,
+            'HEADWEAR_MODEL_PATH': Config.HEADWEAR_MODEL_PATH,
+            'NOWEAR_MODEL_PATH': Config.NOWEAR_MODEL_PATH
+        }
+        for name, path in paths.items():
+            if not os.path.exists(path):
+                print(f"[CONFIG] ✗ Model not found: {path}")
+            else:
+                print(f"[CONFIG] ✓ Model found: {path}")
