@@ -20,7 +20,7 @@ class DepthwiseConv2D(layers.DepthwiseConv2D):
 
 class AgeGenderService:
     def __init__(self):
-        self.IMG_SIZE = 220
+        self.IMG_SIZE = 224
         self.AGE_LABELS = [
             "Baby(0-2)", "Toddler(3-6)", "Child(7-13)", "Teen(14-20)",
             "Young Adult(21-32)", "Adult(33-43)", "Middle Age(44-53)", "Senior(54+)"
