@@ -5,7 +5,7 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import 'package:http/http.dart' as http;
 import '../../main.dart';
-
+import '../../widgets/voice_navigation_widget.dart';
 class WalletQAPage extends StatefulWidget {
   const WalletQAPage({Key? key}) : super(key: key);
 
@@ -218,7 +218,14 @@ class _WalletQAPageState extends State<WalletQAPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("Wallet Q & A")),
+      appBar: AppBar(
+        title: Text("Wallet Q & A"),
+        actions: [
+        // ADD THIS: Voice navigation
+        VoiceNavigationWidget(currentPage: 'wallet_qa'),
+      ],
+        ),
+      
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(

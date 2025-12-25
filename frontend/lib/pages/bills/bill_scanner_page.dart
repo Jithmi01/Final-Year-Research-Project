@@ -1,5 +1,5 @@
 // lib/bill_scanner_page.dart
-// FAST VERSION - No preprocessing, direct upload
+// WITH FLASHLIGHT TOGGLE
 
 import 'dart:convert';
 import 'dart:io';
@@ -8,6 +8,7 @@ import 'package:camera/camera.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_tts/flutter_tts.dart';
 import '../../main.dart';
+import '../../widgets/voice_navigation_widget.dart';
 
 class BillScannerPage extends StatefulWidget {
   final CameraDescription camera;
@@ -24,6 +25,7 @@ class _BillScannerPageState extends State<BillScannerPage> {
   
   bool _isProcessing = false;
   bool _cameraInitialized = false;
+  bool _isFlashOn = false; // ⭐ Flash state
   double _currentBalance = 0.0;
   
   String _vendor = '';
@@ -47,7 +49,7 @@ class _BillScannerPageState extends State<BillScannerPage> {
   Future<void> _initializeCamera() async {
     _controller = CameraController(
       widget.camera,
-      ResolutionPreset.veryHigh, // Better quality for detection
+      ResolutionPreset.veryHigh,
       enableAudio: false,
       imageFormatGroup: ImageFormatGroup.jpeg,
     );
@@ -70,6 +72,40 @@ class _BillScannerPageState extends State<BillScannerPage> {
       }
     } catch (e) {
       print("[CAMERA] Error: $e");
+    }
+  }
+
+  // ⭐ Toggle flashlight
+  Future<void> _toggleFlash() async {
+    if (!_cameraInitialized) return;
+    
+    try {
+      setState(() {
+        _isFlashOn = !_isFlashOn;
+      });
+      
+      if (_isFlashOn) {
+        await _controller.setFlashMode(FlashMode.torch);
+        _speak("Flash on");
+        print("[FLASH] ON");
+      } else {
+        await _controller.setFlashMode(FlashMode.off);
+        _speak("Flash off");
+        print("[FLASH] OFF");
+      }
+    } catch (e) {
+      print("[FLASH] Error: $e");
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Flash not available on this device'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      
+      setState(() {
+        _isFlashOn = false;
+      });
     }
   }
 
@@ -99,6 +135,10 @@ class _BillScannerPageState extends State<BillScannerPage> {
 
   @override
   void dispose() {
+    // Turn off flash before disposing
+    if (_isFlashOn) {
+      _controller.setFlashMode(FlashMode.off);
+    }
     _controller.dispose();
     flutterTts.stop();
     super.dispose();
@@ -116,12 +156,10 @@ class _BillScannerPageState extends State<BillScannerPage> {
     _speak("Scanning");
 
     try {
-      // Capture immediately - no delays
       print("[SCAN] Capturing...");
       final image = await _controller.takePicture();
       final File imageFile = File(image.path);
       
-      // Check file size
       final fileSize = await imageFile.length();
       print("[SCAN] Image size: ${fileSize} bytes");
 
@@ -129,7 +167,6 @@ class _BillScannerPageState extends State<BillScannerPage> {
         _statusMessage = "Sending to server...";
       });
 
-      // Upload directly
       var request = http.MultipartRequest(
         'POST',
         Uri.parse("$API_URL/scan_bill_display_only"),
@@ -193,7 +230,6 @@ class _BillScannerPageState extends State<BillScannerPage> {
       
       _speak("Scan failed. Try again.");
       
-      // Quick error message
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('❌ Scan failed: ${e.toString().replaceAll('Exception:', '').trim()}'),
@@ -379,6 +415,19 @@ class _BillScannerPageState extends State<BillScannerPage> {
       appBar: AppBar(
         title: Text('Bill Scanner'),
         actions: [
+          // ⭐ Flashlight button in AppBar
+          IconButton(
+            icon: Icon(
+              _isFlashOn ? Icons.flash_on : Icons.flash_off,
+              color: _isFlashOn ? Colors.yellow : Colors.white,
+            ),
+            onPressed: _cameraInitialized ? _toggleFlash : null,
+            tooltip: _isFlashOn ? 'Turn off flash' : 'Turn on flash',
+          ),
+          Padding(
+            padding: EdgeInsets.only(right: 8),
+            child: VoiceNavigationWidget(currentPage: 'bill_scanner'),
+          ),
           Padding(
             padding: EdgeInsets.all(12),
             child: Chip(
@@ -398,7 +447,6 @@ class _BillScannerPageState extends State<BillScannerPage> {
                 ? Stack(
                     fit: StackFit.expand,
                     children: [
-                      // Full screen camera preview
                       ClipRect(
                         child: OverflowBox(
                           alignment: Alignment.center,
@@ -435,6 +483,22 @@ class _BillScannerPageState extends State<BillScannerPage> {
                         Positioned.fill(
                           child: CustomPaint(
                             painter: FramePainter(),
+                          ),
+                        ),
+                      
+                      // ⭐ Floating flash button on camera
+                      if (!_isProcessing)
+                        Positioned(
+                          top: 20,
+                          right: 20,
+                          child: FloatingActionButton(
+                            mini: true,
+                            backgroundColor: _isFlashOn ? Colors.yellow : Colors.black54,
+                            onPressed: _toggleFlash,
+                            child: Icon(
+                              _isFlashOn ? Icons.flash_on : Icons.flash_off,
+                              color: _isFlashOn ? Colors.black : Colors.white,
+                            ),
                           ),
                         ),
                     ],
@@ -569,7 +633,6 @@ class FramePainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 3;
     
-    // Use the full available size
     final rect = Rect.fromCenter(
       center: Offset(size.width / 2, size.height / 2),
       width: size.width * 0.85,
@@ -579,23 +642,18 @@ class FramePainter extends CustomPainter {
     final len = 40.0;
     
     // Draw corner brackets
-    // Top-left
     canvas.drawLine(rect.topLeft, rect.topLeft + Offset(len, 0), paint);
     canvas.drawLine(rect.topLeft, rect.topLeft + Offset(0, len), paint);
     
-    // Top-right
     canvas.drawLine(rect.topRight, rect.topRight + Offset(-len, 0), paint);
     canvas.drawLine(rect.topRight, rect.topRight + Offset(0, len), paint);
     
-    // Bottom-left
     canvas.drawLine(rect.bottomLeft, rect.bottomLeft + Offset(len, 0), paint);
     canvas.drawLine(rect.bottomLeft, rect.bottomLeft + Offset(0, -len), paint);
     
-    // Bottom-right
     canvas.drawLine(rect.bottomRight, rect.bottomRight + Offset(-len, 0), paint);
     canvas.drawLine(rect.bottomRight, rect.bottomRight + Offset(0, -len), paint);
     
-    // Optional: Add center guide text
     final textPainter = TextPainter(
       text: TextSpan(
         text: 'Align bill within frame',

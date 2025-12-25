@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import '../../services/api_service.dart';
+import '../../widgets/voice_navigation_widget.dart';
 
 class AgeGenderScreen extends StatefulWidget {
   const AgeGenderScreen({super.key});
@@ -432,6 +433,7 @@ class _AgeGenderScreenState extends State<AgeGenderScreen> {
             padding: EdgeInsets.all(8),
             child: _buildConnectionStatus(),
           ),
+          VoiceNavigationWidget(currentPage: 'age_gender'),
         ],
       ),
       body: SingleChildScrollView(

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import '../../services/api_service.dart';
+import '../../widgets/voice_navigation_widget.dart';
 
 class AttributesScreen extends StatefulWidget {
   const AttributesScreen({super.key});
@@ -255,6 +256,10 @@ class _AttributesScreenState extends State<AttributesScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Attributes Detection'),
+        actions: [
+        // ADD THIS: Voice navigation
+        VoiceNavigationWidget(currentPage: 'attributes'),
+      ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),

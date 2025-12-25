@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_tts/flutter_tts.dart';
 import 'dart:async';
 import '../../main.dart';
+import '../../widgets/voice_navigation_widget.dart';
 
 class ARCurrencyDetectorPage extends StatefulWidget {
   final CameraDescription camera;
@@ -219,7 +220,35 @@ class _ARCurrencyDetectorPageState extends State<ARCurrencyDetectorPage> {
           }
         },
       ),
-      floatingActionButton: _buildFloatingButtons(),
+      floatingActionButton: Column(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        // Add voice button at top
+        VoiceNavigationWidget(currentPage: 'ar_currency'),
+        SizedBox(height: 12),
+        
+        // Existing buttons
+        FloatingActionButton(
+          heroTag: 'manual_scan',
+          mini: true,
+          onPressed: _isScanning ? _manualScan : null,
+          child: Icon(Icons.camera_alt, size: 20),
+        ),
+        SizedBox(height: 12),
+        FloatingActionButton(
+          heroTag: 'announce',
+          mini: true,
+          onPressed: _detectedCurrencies.isEmpty ? null : _announceDetections,
+          child: Icon(Icons.volume_up, size: 20),
+        ),
+        SizedBox(height: 12),
+        FloatingActionButton(
+          heroTag: 'scan',
+          onPressed: () => _isScanning ? _stopScanning() : _startContinuousScanning(),
+          child: Icon(_isScanning ? Icons.stop : Icons.play_arrow),
+        ),
+      ],
+    ),
     );
   }
 
