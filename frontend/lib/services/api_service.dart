@@ -6,8 +6,8 @@ import 'dart:async';
 
 class ApiService {
   // ✅ CORRECT IP ADDRESS - Your server IP
-  static const String baseUrl = 'http://192.168.8.143:5000/api';
-  static const String serverUrl = 'http://192.168.8.143:5000';
+  static const String baseUrl = 'http://192.168.1.103:5000/api';
+  static const String serverUrl = 'http://192.168.1.103.98:5000';
   
   // Timeout settings
   static const Duration timeout = Duration(seconds: 30);
@@ -278,7 +278,7 @@ class ApiService {
             'Please check:\n'
             '1. Server is running at $serverUrl\n'
             '2. Both devices on same WiFi\n'
-            '3. IP address is correct (192.168.8.143)'
+            '3. IP address is correct '
       };
     } catch (e) {
       return {
