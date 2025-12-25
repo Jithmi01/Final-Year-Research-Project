@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import '../../services/api_service.dart';
+import '../../widgets/voice_navigation_widget.dart';
 
 class FaceRecognitionScreen extends StatefulWidget {
   const FaceRecognitionScreen({super.key});
@@ -374,6 +375,7 @@ class _FaceRecognitionScreenState extends State<FaceRecognitionScreen> {
             },
             activeColor: Colors.white,
           ),
+          VoiceNavigationWidget(currentPage: 'face_recognition'),
         ],
       ),
       body: SingleChildScrollView(

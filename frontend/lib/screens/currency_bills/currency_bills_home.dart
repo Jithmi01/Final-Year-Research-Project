@@ -5,6 +5,8 @@ import '../../pages/currency/ar_currency_detector_page.dart';
 import '../../pages/bills/bill_scanner_page.dart';
 import '../../pages/smart_wallet/wallet_scanner_page.dart';
 import '../../pages/smart_wallet/wallet_qa_page.dart';
+import '../../widgets/voice_navigation_widget.dart';
+
 
 class CurrencyBillsHome extends StatelessWidget {
   const CurrencyBillsHome({Key? key}) : super(key: key);
@@ -145,6 +147,7 @@ class CurrencyBillsHome extends StatelessWidget {
           ],
         ),
       ),
+      floatingActionButton: VoiceNavigationWidget(currentPage: 'currency_home'),
     );
   }
 

@@ -6,6 +6,7 @@ import 'package:camera/camera.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_tts/flutter_tts.dart';
 import '../../main.dart';
+import '../../widgets/voice_navigation_widget.dart';
 
 class WalletScannerPage extends StatefulWidget {
   final CameraDescription camera;
@@ -291,6 +292,10 @@ class _WalletScannerPageState extends State<WalletScannerPage> {
               },
               tooltip: 'View Savings Goal',
             ),
+            Padding(
+              padding: EdgeInsets.only(right: 8),
+              child: VoiceNavigationWidget(currentPage: 'wallet_scanner'),
+           ),
         ],
       ),
       body: Column(

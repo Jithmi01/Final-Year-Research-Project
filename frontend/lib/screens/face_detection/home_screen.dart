@@ -3,7 +3,9 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'age_gender_screen.dart';
 import 'face_recognition_screen.dart';
 import 'attributes_screen.dart';
-import '/services/api_service.dart';
+import '../../services/api_service.dart';
+import '../../widgets/voice_navigation_widget.dart';
+
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -279,6 +281,10 @@ class _HomeScreenState extends State<HomeScreen> {
               onPressed: _checkServerConnection,
               tooltip: isServerConnected ? 'Server Connected' : 'Server Disconnected',
             ),
+            Padding(
+          padding: EdgeInsets.only(right: 8),
+          child: VoiceNavigationWidget(currentPage: 'face_home'),
+        ),
         ],
       ),
       body: SafeArea(
