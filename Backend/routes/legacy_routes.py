@@ -11,9 +11,9 @@ NOW AUTOMATICALLY SAVES BILLS TO DATABASE
 
 from flask import Blueprint, request, jsonify
 import traceback
-from app.services.bill_service import BillExtractor, BillRepository
-from app.services.wallet_service import WalletService, QuestionAnswerer, SummaryGenerator
-from app.config.settings import validate_image_upload
+from services.bill_service import BillExtractor, BillRepository
+from services.wallet_service import WalletService, QuestionAnswerer, SummaryGenerator
+from config.settings import validate_image_upload
 
 legacy_bp = Blueprint('legacy', __name__)
 

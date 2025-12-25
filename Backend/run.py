@@ -7,8 +7,8 @@ Smart Wallet Backend - Entry Point
 Run this file to start the server: python run.py
 """
 
-from app.main import app
-from app.config.settings import API_HOST, API_PORT, DEBUG
+from main import app
+from config.settings import API_HOST, API_PORT, DEBUG
 
 if __name__ == "__main__":
     print("=" * 80)

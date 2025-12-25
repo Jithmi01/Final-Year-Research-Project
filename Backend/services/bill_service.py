@@ -10,9 +10,9 @@ Handle bill scanning, extraction, and storage
 import json
 from datetime import datetime
 from typing import Dict, Optional, Tuple, List
-from app.models.database import execute_insert, execute_query, execute_update, get_db_connection
-from app.services.category_service import CategoryDetector, get_category_icon
-from app.services.field_extractor import extract_receipt_fields
+from models.database import execute_insert, execute_query, execute_update, get_db_connection
+from services.category_service import CategoryDetector, get_category_icon
+from services.field_extractor import extract_receipt_fields
 
 # ============================================================================
 # BILL EXTRACTOR

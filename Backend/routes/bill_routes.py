@@ -10,9 +10,9 @@ API endpoints for bill scanning and management
 
 from flask import Blueprint, request, jsonify
 import traceback
-from app.services.bill_service import BillExtractor, BillRepository
-from app.services.wallet_service import WalletService
-from app.config.settings import validate_image_upload
+from services.bill_service import BillExtractor, BillRepository
+from services.wallet_service import WalletService
+from config.settings import validate_image_upload
 
 bill_bp = Blueprint('bill', __name__, url_prefix='/api/bill')
 

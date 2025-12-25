@@ -14,7 +14,7 @@ import easyocr
 import re
 import os
 from typing import Dict, List
-from app.config.settings import OLD_YOLO_MODEL_PATH, NEW_YOLO_MODEL_PATH
+from config.settings import OLD_YOLO_MODEL_PATH, NEW_YOLO_MODEL_PATH
 
 # ============================================================================
 # MODEL INITIALIZATION

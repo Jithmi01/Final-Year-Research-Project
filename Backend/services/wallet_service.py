@@ -9,7 +9,7 @@ Handles all wallet operations and natural language queries
 
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
-from app.models.database import execute_query, execute_insert, get_db_connection
+from models.database import execute_query, execute_insert, get_db_connection
 
 # ============================================================================
 # WALLET SERVICE

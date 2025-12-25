@@ -8,7 +8,7 @@ Detect Sri Lankan currency notes using YOLO
 """
 
 from ultralytics import YOLO
-from app.config.settings import CURRENCY_MODEL_PATH
+from config.settings import CURRENCY_MODEL_PATH
 import re
 import os
 import numpy as np

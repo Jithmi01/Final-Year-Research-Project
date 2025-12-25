@@ -12,8 +12,8 @@ from flask import Blueprint, request, jsonify
 import cv2
 import numpy as np
 import traceback
-from app.services.currency_service import CurrencyDetector
-from app.config.settings import validate_image_upload
+from services.currency_service import CurrencyDetector
+from config.settings import validate_image_upload
 
 currency_bp = Blueprint('currency', __name__, url_prefix='/api/currency')
 

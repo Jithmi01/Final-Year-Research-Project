@@ -9,14 +9,14 @@ Initialize app and register all routes
 
 from flask import Flask, jsonify
 from flask_cors import CORS
-from app.config.settings import API_HOST, API_PORT, DEBUG, verify_tesseract
-from app.models.database import init_all_databases, ensure_database_ready
+from config.settings import API_HOST, API_PORT, DEBUG, verify_tesseract
+from models.database import init_all_databases, ensure_database_ready
 
 # Import blueprints
-from app.routes.bill_routes import bill_bp
-from app.routes.wallet_routes import wallet_bp
-from app.routes.currency_routes import currency_bp
-from app.routes.legacy_routes import legacy_bp
+from routes.bill_routes import bill_bp
+from routes.wallet_routes import wallet_bp
+from routes.currency_routes import currency_bp
+from routes.legacy_routes import legacy_bp
 
 def create_app():
     app = Flask(__name__)

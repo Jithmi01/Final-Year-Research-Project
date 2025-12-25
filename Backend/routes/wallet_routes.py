@@ -9,7 +9,7 @@ API endpoints for wallet operations
 
 from flask import Blueprint, request, jsonify
 import traceback
-from app.services.wallet_service import WalletService, QuestionAnswerer, SummaryGenerator
+from services.wallet_service import WalletService, QuestionAnswerer, SummaryGenerator
 
 wallet_bp = Blueprint('wallet', __name__, url_prefix='/api/wallet')
 

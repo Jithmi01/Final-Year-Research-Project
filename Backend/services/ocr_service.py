@@ -14,7 +14,7 @@ import numpy as np
 from PIL import Image
 import re
 from typing import List, Dict, Tuple
-from app.config.settings import OCR_CONFIG
+from config.settings import OCR_CONFIG
 
 # ============================================================================
 # IMAGE ENHANCEMENT
