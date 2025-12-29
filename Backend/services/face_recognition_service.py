@@ -1,5 +1,3 @@
-# FILE: services/face_recognition_service.py
-
 import os
 import cv2
 import numpy as np
@@ -192,5 +190,9 @@ class FaceRecognitionService:
             'distance_m': distance_m,
             'position': position,
             'last_seen': last_seen_prev,
-            'announcement': announcement
+            'announcement': announcement,
+            'face_box': [x1, y1, x2, y2] 
         }
+
+
+[]
