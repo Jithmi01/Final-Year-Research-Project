@@ -173,6 +173,7 @@ project-root/
 ├── README.md
 └── LICENSE
 ```
+---
 ## Project Setup
 
 ### Backend (Python)
@@ -191,7 +192,7 @@ cd frontend
 flutter pub get
 flutter run
 ```
-
+---
 ## Usage
 
 - Launch the mobile application
@@ -202,7 +203,7 @@ flutter run
      - **Navigate surroundings**
      - **Get outfit recommendations**
 - Receive real-time audio feedback
-
+---
 ## Ethical Considerations
 
 - Consent-based face registration
@@ -210,7 +211,7 @@ flutter run
 - Privacy-aware announcements
 - No unauthorized identity disclosure
 - Research-use-only deployment
-
+---
 ## Expected Impact
 
 - Improved independence of visually impaired users
@@ -218,13 +219,14 @@ flutter run
 - Reduced dependency on external assistance
 - Practical application of AI for accessibility
 - Alignment with inclusive technology goals
-
+---
 ## References
 
 - World Health Organization. (2024). Vision Impairment and Blindness
 - Goodman-Deane et al. (2023). Assistive Technologies for Accessibility
 - Zhang & Lee. (2022). Real-Time Face Attribute Recognition using CNNs
-
+---
 ## License
 
 - This project is developed for academic and research purposes only.
+---
