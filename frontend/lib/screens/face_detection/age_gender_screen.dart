@@ -1,10 +1,8 @@
-// lib/screens/age_gender_screen.dart
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:camera/camera.dart';
 import 'package:flutter_tts/flutter_tts.dart';
-import '../../services/api_service.dart';
-import '../../widgets/voice_navigation_widget.dart';
+import '/services/api_service.dart';
 
 class AgeGenderScreen extends StatefulWidget {
   const AgeGenderScreen({super.key});
@@ -13,34 +11,37 @@ class AgeGenderScreen extends StatefulWidget {
   State<AgeGenderScreen> createState() => _AgeGenderScreenState();
 }
 
-
 class _AgeGenderScreenState extends State<AgeGenderScreen> {
-  final ImagePicker _picker = ImagePicker();
   final FlutterTts flutterTts = FlutterTts();
   
-  File? _selectedImage;
+  List<CameraDescription>? cameras;
+  CameraController? _cameraController;
+  bool _isFrontCamera = true;
+  File? _capturedImage;
   Map<String, dynamic>? _detectionResult;
   bool _isLoading = false;
   String? _errorMessage;
   bool _serverConnected = false;
+  bool _showCapturedImage = false;
 
   @override
   void initState() {
     super.initState();
     _initTts();
     _checkServerConnection();
+    _initCamera();
   }
 
   Future<void> _initTts() async {
-    try {
-      await flutterTts.setLanguage("en-US");
-      await flutterTts.setSpeechRate(0.5);
-      await flutterTts.setVolume(1.0);
-      await flutterTts.setPitch(1.0);
-      _speak("Age and Gender Detection. Tap camera to capture, or gallery to select image.");
-    } catch (e) {
-      print('TTS initialization error: $e');
-    }
+    await flutterTts.setLanguage("en-US");
+    await flutterTts.setSpeechRate(0.5);
+    await flutterTts.setVolume(1.0);
+    _speak("Age and Gender Detection. Camera is ready. Tap screen to capture photo.");
+  }
+
+  Future<void> _speak(String text) async {
+    await flutterTts.stop();
+    await flutterTts.speak(text);
   }
 
   Future<void> _checkServerConnection() async {
@@ -50,70 +51,76 @@ class _AgeGenderScreenState extends State<AgeGenderScreen> {
     });
     
     if (!connected) {
-      _showErrorDialog(
-        'Server Connection Failed',
-        'Cannot connect to server. Please check:\n'
-        '1. Server is running (python app.py)\n'
-        '2. Both devices on same WiFi\n'
-        '3. IP address is correct in api_service.dart'
-      );
+      _speak("Warning: Server not connected");
     }
   }
 
-  Future<void> _speak(String text) async {
-    try {
-      await flutterTts.speak(text);
-    } catch (e) {
-      print('TTS error: $e');
-    }
+  Future<void> _initCamera() async {
+    cameras = await availableCameras();
+    _startCamera();
   }
 
-//
+  void _startCamera() {
+    if (cameras == null || cameras!.isEmpty) return;
+    
+    final camera = _isFrontCamera
+        ? cameras!.firstWhere((c) => c.lensDirection == CameraLensDirection.front)
+        : cameras!.firstWhere((c) => c.lensDirection == CameraLensDirection.back);
 
-  Future<void> _pickImage(ImageSource source) async {
-    setState(() {
-      _errorMessage = null;
+    _cameraController?.dispose();
+    _cameraController = CameraController(
+      camera,
+      ResolutionPreset.high,
+      enableAudio: false,
+      imageFormatGroup: ImageFormatGroup.jpeg,
+    );
+
+    _cameraController!.initialize().then((_) {
+      if (!mounted) return;
+      setState(() {});
     });
+  }
+
+  void _switchCamera() {
+    setState(() => _isFrontCamera = !_isFrontCamera);
+    _startCamera();
+    _speak(_isFrontCamera ? "Switched to front camera" : "Switched to back camera");
+  }
+
+  Future<void> _captureAndDetect() async {
+    if (_cameraController == null || !_cameraController!.value.isInitialized || _isLoading) {
+      _speak("Camera not ready");
+      return;
+    }
 
     try {
-      final XFile? image = await _picker.pickImage(
-        source: source,
-        imageQuality: 85,
-        maxWidth: 1920,
-        maxHeight: 1920,
-      );
+      _speak("Capturing image");
+      final image = await _cameraController!.takePicture();
+      final file = File(image.path);
 
-      if (image != null) {
-        setState(() {
-          _selectedImage = File(image.path);
-          _detectionResult = null;
-          _errorMessage = null;
-        });
-        
-        _speak("Image selected. Processing...");
-        await _detectAgeGender();
-      }
-    } catch (e) {
       setState(() {
-        _errorMessage = "Error selecting image: $e";
+        _capturedImage = file;
+        _showCapturedImage = true;
+        _isLoading = true;
+        _errorMessage = null;
+        _detectionResult = null;
       });
-      _speak("Error selecting image");
-      _showSnackBar('Error: $e', isError: true);
+
+      _speak("Processing image");
+      await _detectAgeGender(file);
+    } catch (e) {
+      _speak("Error capturing image");
+      setState(() {
+        _errorMessage = "Capture failed: $e";
+        _isLoading = false;
+      });
     }
   }
 
-  Future<void> _detectAgeGender() async {
-    if (_selectedImage == null) return;
-
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
-
+  Future<void> _detectAgeGender(File imageFile) async {
     try {
-      final result = await ApiService.detectAgeGender(_selectedImage!);
+      final result = await ApiService.detectAgeGender(imageFile);
       
-      // Check if result contains error
       if (result.containsKey('error')) {
         throw Exception(result['error']);
       }
@@ -121,223 +128,340 @@ class _AgeGenderScreenState extends State<AgeGenderScreen> {
       setState(() {
         _detectionResult = result;
         _isLoading = false;
-        _errorMessage = null;
       });
 
-      // Announce result
       if (result['announcement'] != null) {
         _speak(result['announcement']);
-      } else {
-        _speak("${result['gender']} person detected, about ${result['age_group']}");
       }
-      
-      _showSnackBar('Detection successful!', isError: false);
       
     } catch (e) {
       setState(() {
         _isLoading = false;
-        _detectionResult = null;
         _errorMessage = e.toString();
       });
       
-      String errorMsg = e.toString();
-      
-      // Provide helpful error messages
-      if (errorMsg.contains('No face detected')) {
-        _speak("No face detected. Please try a clearer image with a visible face.");
-        _showErrorDialog(
-          'No Face Detected',
-          'Please ensure:\n'
-          '• Face is clearly visible\n'
-          '• Good lighting\n'
-          '• Front-facing photo\n'
-          '• Face is at least 60x60 pixels'
-        );
-      } else if (errorMsg.contains('Connection timeout') || errorMsg.contains('Cannot connect')) {
-        _speak("Connection error. Please check server connection.");
-        _showErrorDialog(
-          'Connection Error',
-          'Cannot connect to server.\n\n'
-          'Please check:\n'
-          '• Server is running (python app.py)\n'
-          '• Both devices on same WiFi\n'
-          '• IP address in api_service.dart is correct'
-        );
+      if (e.toString().contains('No face detected')) {
+        _speak("No face detected. Please try again with a clear face photo.");
       } else {
-        _speak("Detection failed: $errorMsg");
-        _showSnackBar('Error: $errorMsg', isError: true);
+        _speak("Detection failed. Please try again.");
       }
     }
   }
 
-  void _showSnackBar(String message, {required bool isError}) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: isError ? Colors.red[700] : Colors.green[700],
-        duration: Duration(seconds: isError ? 4 : 2),
-        action: SnackBarAction(
-          label: 'OK',
-          textColor: Colors.white,
-          onPressed: () {},
+  void _retakePhoto() {
+    setState(() {
+      _capturedImage = null;
+      _showCapturedImage = false;
+      _detectionResult = null;
+      _errorMessage = null;
+    });
+    _speak("Ready to capture new photo. Tap screen.");
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Color(0xFF1E1E1E),
+      appBar: AppBar(
+        backgroundColor: Color(0xFF1E1E1E),
+        title: Text('Age & Gender Detection'),
+        actions: [
+          IconButton(
+            icon: Icon(
+              _serverConnected ? Icons.cloud_done : Icons.cloud_off,
+              color: _serverConnected ? Colors.green : Colors.red,
+            ),
+            onPressed: _checkServerConnection,
+          ),
+        ],
+      ),
+      body: Stack(
+        children: [
+          // Camera or Captured Image View
+          Positioned.fill(
+            child: GestureDetector(
+              onTap: _showCapturedImage ? null : _captureAndDetect,
+              child: _showCapturedImage && _capturedImage != null
+                  ? _buildCapturedImageView()
+                  : _buildCameraView(),
+            ),
+          ),
+
+          // Camera Switch Button (only show when camera is active)
+          if (!_showCapturedImage)
+            Positioned(
+              top: 20,
+              right: 20,
+              child: _buildCameraSwitchButton(),
+            ),
+
+          // Face Detection Indicator
+          if (_detectionResult != null && _showCapturedImage)
+            Positioned.fill(
+              child: CustomPaint(
+                painter: FaceIndicatorPainter(),
+              ),
+            ),
+
+          // Loading Indicator
+          if (_isLoading)
+            Positioned.fill(
+              child: Container(
+                color: Colors.black54,
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircularProgressIndicator(
+                        color: Colors.blue,
+                        strokeWidth: 4,
+                      ),
+                      SizedBox(height: 20),
+                      Text(
+                        'Detecting age and gender...',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+          // Result Overlay
+          if (_detectionResult != null && !_isLoading)
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: _buildResultOverlay(),
+            ),
+
+          // Error Message
+          if (_errorMessage != null && !_isLoading)
+            Positioned(
+              bottom: 20,
+              left: 20,
+              right: 20,
+              child: _buildErrorCard(),
+            ),
+
+          // Retake Button
+          if (_showCapturedImage && !_isLoading)
+            Positioned(
+              top: 20,
+              left: 20,
+              child: _buildRetakeButton(),
+            ),
+
+          // Tap Instruction (only when camera is ready)
+          if (!_showCapturedImage && !_isLoading)
+            Positioned(
+              bottom: 40,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Container(
+                  padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withOpacity(0.9),
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.touch_app, color: Colors.white),
+                      SizedBox(width: 8),
+                      Text(
+                        'Tap anywhere to capture',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCameraView() {
+    if (_cameraController == null || !_cameraController!.value.isInitialized) {
+      return Container(
+        color: Colors.black,
+        child: Center(
+          child: CircularProgressIndicator(color: Colors.white),
+        ),
+      );
+    }
+
+    return Container(
+      color: Colors.black,
+      child: CameraPreview(_cameraController!),
+    );
+  }
+
+  Widget _buildCapturedImageView() {
+    return Container(
+      color: Colors.black,
+      child: Image.file(
+        _capturedImage!,
+        fit: BoxFit.contain,
+      ),
+    );
+  }
+
+  Widget _buildCameraSwitchButton() {
+    return GestureDetector(
+      onTap: _switchCamera,
+      child: Container(
+        padding: EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.black54,
+          shape: BoxShape.circle,
+        ),
+        child: Icon(
+          Icons.flip_camera_ios,
+          color: Colors.white,
+          size: 32,
         ),
       ),
     );
   }
 
-  void _showErrorDialog(String title, String message) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Row(
+  Widget _buildRetakeButton() {
+    return GestureDetector(
+      onTap: _retakePhoto,
+      child: Container(
+        padding: EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.red.withOpacity(0.9),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.error_outline, color: Colors.red),
+            Icon(Icons.refresh, color: Colors.white, size: 24),
             SizedBox(width: 8),
-            Text(title),
+            Text(
+              'Retake',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ],
         ),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('OK'),
-          ),
-          if (title.contains('Connection'))
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                _checkServerConnection();
-              },
-              child: Text('Retry'),
-            ),
-        ],
       ),
     );
   }
 
-  Widget _buildConnectionStatus() {
-    return Container(
-      padding: EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: _serverConnected ? Colors.green[50] : Colors.red[50],
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: _serverConnected ? Colors.green : Colors.red,
-          width: 1,
-        ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            _serverConnected ? Icons.check_circle : Icons.error,
-            color: _serverConnected ? Colors.green : Colors.red,
-            size: 20,
-          ),
-          SizedBox(width: 8),
-          Text(
-            _serverConnected ? 'Server Connected' : 'Server Disconnected',
-            style: TextStyle(
-              color: _serverConnected ? Colors.green[900] : Colors.red[900],
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          SizedBox(width: 8),
-          IconButton(
-            icon: Icon(Icons.refresh, size: 20),
-            onPressed: _checkServerConnection,
-            padding: EdgeInsets.zero,
-            constraints: BoxConstraints(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildResultCard() {
-    if (_detectionResult == null) return const SizedBox.shrink();
-
+  Widget _buildResultOverlay() {
     final gender = _detectionResult!['gender'] ?? 'Unknown';
     final genderConf = _detectionResult!['gender_confidence'] ?? 0.0;
     final ageGroup = _detectionResult!['age_group'] ?? 'Unknown';
     final ageConf = _detectionResult!['age_confidence'] ?? 0.0;
 
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.check_circle, color: Colors.green, size: 28),
-                SizedBox(width: 8),
-                Text(
-                  'Detection Result',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                  ),
+    return Container(
+      margin: EdgeInsets.all(16),
+      padding: EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.blue[900]!, Colors.blue[700]!],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black26,
+            blurRadius: 10,
+            offset: Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.white, size: 28),
+              SizedBox(width: 12),
+              Text(
+                'Detection Complete',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
                 ),
-              ],
-            ),
-            Divider(height: 24),
-            _buildResultRow(
-              icon: Icons.person,
-              label: 'Gender',
-              value: gender,
-              confidence: genderConf,
-              color: gender == 'Female' ? Colors.pink : Colors.blue,
-            ),
-            SizedBox(height: 12),
-            _buildResultRow(
-              icon: Icons.cake,
-              label: 'Age Group',
-              value: ageGroup,
-              confidence: ageConf,
-              color: Colors.purple,
-            ),
-            Divider(height: 24),
-            Container(
-              padding: const EdgeInsets.all(12),
+              ),
+            ],
+          ),
+          SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _buildInfoCard(
+                  icon: Icons.person,
+                  label: 'Gender',
+                  value: gender,
+                  confidence: genderConf,
+                  color: gender == 'Female' ? Colors.pink[300]! : Colors.blue[300]!,
+                ),
+              ),
+              SizedBox(width: 12),
+              Expanded(
+                child: _buildInfoCard(
+                  icon: Icons.cake,
+                  label: 'Age Group',
+                  value: ageGroup,
+                  confidence: ageConf,
+                  color: Colors.purple[300]!,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 16),
+          GestureDetector(
+            onTap: () => _speak(_detectionResult!['announcement'] ?? ''),
+            child: Container(
+              padding: EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.blue[50],
+                color: Colors.white.withOpacity(0.2),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.blue[200]!),
               ),
               child: Row(
                 children: [
-                  Icon(Icons.volume_up, color: Colors.blue[700]),
+                  Icon(Icons.volume_up, color: Colors.white),
                   SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      _detectionResult!['announcement'] ?? 
-                      '$gender person detected, about $ageGroup.',
+                      _detectionResult!['announcement'] ?? '',
                       style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.blue[900],
+                        color: Colors.white,
+                        fontSize: 14,
                       ),
                     ),
-                  ),
-                  IconButton(
-                    icon: Icon(Icons.replay, color: Colors.blue[700]),
-                    onPressed: () {
-                      _speak(_detectionResult!['announcement'] ?? '');
-                    },
-                    tooltip: 'Replay announcement',
                   ),
                 ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildResultRow({
+  Widget _buildInfoCard({
     required IconData icon,
     required String label,
     required String value,
@@ -347,51 +471,37 @@ class _AgeGenderScreenState extends State<AgeGenderScreen> {
     return Container(
       padding: EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: Colors.white.withOpacity(0.15),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.3)),
       ),
-      child: Row(
+      child: Column(
         children: [
           Icon(icon, color: color, size: 28),
-          SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey[600],
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  value,
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: color,
-                  ),
-                ),
-              ],
+          SizedBox(height: 8),
+          Text(
+            label,
+            style: TextStyle(
+              color: Colors.white70,
+              fontSize: 12,
             ),
           ),
-          Container(
-            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(20),
+          SizedBox(height: 4),
+          Text(
+            value,
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
             ),
-            child: Text(
-              '${confidence.toStringAsFixed(1)}%',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
+            textAlign: TextAlign.center,
+          ),
+          SizedBox(height: 4),
+          Text(
+            '${confidence.toStringAsFixed(1)}%',
+            style: TextStyle(
+              color: color,
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
             ),
           ),
         ],
@@ -400,165 +510,105 @@ class _AgeGenderScreenState extends State<AgeGenderScreen> {
   }
 
   Widget _buildErrorCard() {
-    if (_errorMessage == null) return SizedBox.shrink();
-
-    return Card(
-      color: Colors.red[50],
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Icon(Icons.error_outline, color: Colors.red, size: 32),
-            SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                _errorMessage!,
-                style: TextStyle(color: Colors.red[900]),
-              ),
-            ),
-          ],
-        ),
+    return Container(
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.red[900],
+        borderRadius: BorderRadius.circular(12),
       ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Age & Gender Detection'),
-        actions: [
-          Padding(
-            padding: EdgeInsets.all(8),
-            child: _buildConnectionStatus(),
+      child: Row(
+        children: [
+          Icon(Icons.error_outline, color: Colors.white, size: 28),
+          SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              _errorMessage!,
+              style: TextStyle(color: Colors.white, fontSize: 14),
+            ),
           ),
-          VoiceNavigationWidget(currentPage: 'age_gender'),
         ],
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (_selectedImage != null)
-              Card(
-                elevation: 4,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: Image.file(
-                    _selectedImage!,
-                    height: 300,
-                    fit: BoxFit.cover,
-                  ),
-                ),
-              ),
-            
-            if (_selectedImage == null)
-              Container(
-                height: 300,
-                decoration: BoxDecoration(
-                  color: Colors.grey[200],
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.grey[400]!, width: 2),
-                ),
-                child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.add_photo_alternate, 
-                           size: 80, 
-                           color: Colors.grey[400]),
-                      SizedBox(height: 16),
-                      Text(
-                        'No image selected',
-                        style: TextStyle(
-                          fontSize: 18,
-                          color: Colors.grey[600],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            
-            const SizedBox(height: 20),
-            
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: _isLoading ? null : () {
-                      _speak("Opening camera");
-                      _pickImage(ImageSource.camera);
-                    },
-                    icon: const Icon(Icons.camera_alt, size: 28),
-                    label: const Text('Camera', style: TextStyle(fontSize: 18)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: _isLoading ? null : () {
-                      _speak("Opening gallery");
-                      _pickImage(ImageSource.gallery);
-                    },
-                    icon: const Icon(Icons.photo_library, size: 28),
-                    label: const Text('Gallery', style: TextStyle(fontSize: 18)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            
-            const SizedBox(height: 20),
-            
-            if (_isLoading)
-              Card(
-                child: Padding(
-                  padding: EdgeInsets.all(32),
-                  child: Column(
-                    children: [
-                      CircularProgressIndicator(strokeWidth: 3),
-                      SizedBox(height: 16),
-                      Text(
-                        'Detecting age and gender...',
-                        style: TextStyle(fontSize: 16),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            
-            if (!_isLoading) _buildErrorCard(),
-            if (!_isLoading) _buildResultCard(),
-          ],
-        ),
       ),
     );
   }
 
   @override
   void dispose() {
+    _cameraController?.dispose();
     flutterTts.stop();
     super.dispose();
   }
+}
+
+class FaceIndicatorPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.green
+      ..strokeWidth = 4
+      ..style = PaintingStyle.stroke;
+
+    final centerX = size.width / 2;
+    final centerY = size.height / 2;
+    final radius = size.width * 0.3;
+
+    canvas.drawCircle(Offset(centerX, centerY), radius, paint);
+
+    // Draw corner brackets
+    final bracketLength = radius * 0.3;
+    final bracketPaint = Paint()
+      ..color = Colors.green
+      ..strokeWidth = 6
+      ..style = PaintingStyle.stroke;
+
+    // Top-left
+    canvas.drawLine(
+      Offset(centerX - radius, centerY - radius),
+      Offset(centerX - radius + bracketLength, centerY - radius),
+      bracketPaint,
+    );
+    canvas.drawLine(
+      Offset(centerX - radius, centerY - radius),
+      Offset(centerX - radius, centerY - radius + bracketLength),
+      bracketPaint,
+    );
+
+    // Top-right
+    canvas.drawLine(
+      Offset(centerX + radius, centerY - radius),
+      Offset(centerX + radius - bracketLength, centerY - radius),
+      bracketPaint,
+    );
+    canvas.drawLine(
+      Offset(centerX + radius, centerY - radius),
+      Offset(centerX + radius, centerY - radius + bracketLength),
+      bracketPaint,
+    );
+
+    // Bottom-left
+    canvas.drawLine(
+      Offset(centerX - radius, centerY + radius),
+      Offset(centerX - radius + bracketLength, centerY + radius),
+      bracketPaint,
+    );
+    canvas.drawLine(
+      Offset(centerX - radius, centerY + radius),
+      Offset(centerX - radius, centerY + radius - bracketLength),
+      bracketPaint,
+    );
+
+    // Bottom-right
+    canvas.drawLine(
+      Offset(centerX + radius, centerY + radius),
+      Offset(centerX + radius - bracketLength, centerY + radius),
+      bracketPaint,
+    );
+    canvas.drawLine(
+      Offset(centerX + radius, centerY + radius),
+      Offset(centerX + radius, centerY + radius - bracketLength),
+      bracketPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
