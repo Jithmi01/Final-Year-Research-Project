@@ -1,13 +1,13 @@
-// frontend/lib/services/api_service.dart
+// lib/services/api_service.dart
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:async';
 
 class ApiService {
-  // ✅ CORRECT IP ADDRESS - Your server IP
-  static const String baseUrl = 'http://192.168.1.103:5000/api';
-  static const String serverUrl = 'http://192.168.1.103.98:5000';
+  // IMPORTANT: Update this IP address to match your integrated project's IP
+  static const String baseUrl = 'http://192.168.1.104:5000/api';
+  static const String serverUrl = 'http://192.168.1.104:5000';
   
   // Timeout settings
   static const Duration timeout = Duration(seconds: 30);
@@ -15,18 +15,15 @@ class ApiService {
   // Age & Gender Detection
   static Future<Map<String, dynamic>> detectAgeGender(File imageFile) async {
     try {
-      // Validate file exists
       if (!await imageFile.exists()) {
         throw Exception('Image file does not exist');
       }
       
-      // Create multipart request
       var request = http.MultipartRequest(
         'POST',
         Uri.parse('$baseUrl/age-gender/detect'),
       );
       
-      // Add image file
       request.files.add(
         await http.MultipartFile.fromPath(
           'image', 
@@ -34,7 +31,6 @@ class ApiService {
         ),
       );
       
-      // Send request with timeout
       var streamedResponse = await request.send().timeout(
         timeout,
         onTimeout: () {
@@ -42,14 +38,11 @@ class ApiService {
         },
       );
       
-      // Get response
       var response = await http.Response.fromStream(streamedResponse);
       
-      // Parse response
       if (response.statusCode == 200) {
         var data = json.decode(response.body);
         
-        // Validate response structure
         if (!data.containsKey('gender') || !data.containsKey('age_group')) {
           throw Exception('Invalid response format from server');
         }
@@ -202,55 +195,40 @@ class ApiService {
     }
   }
   
-  // ✅ FIXED: Health Check - Now checks the correct endpoint
+  // Health Check
   static Future<bool> checkHealth() async {
     try {
-      print('Checking health at: $serverUrl/health');
-      
       var response = await http.get(
         Uri.parse('$serverUrl/health'),
       ).timeout(const Duration(seconds: 5));
       
-      print('Health check response: ${response.statusCode}');
-      
       if (response.statusCode == 200) {
-        // Parse the response to verify services are active
         var data = json.decode(response.body);
-        print('Health data: $data');
         
-        // Check if blind_assistant services are active
         if (data.containsKey('systems') && 
             data['systems'].containsKey('blind_assistant')) {
           var services = data['systems']['blind_assistant']['services'];
-          print('Blind Assistant services: $services');
           
-          // Check if at least one service is active
           if (services is List && services.isNotEmpty) {
             return true;
           }
         }
         
-        // Fallback: if we got 200, server is running
         return true;
       }
       
       return false;
     } catch (e) {
-      print('Health check error: $e');
       return false;
     }
   }
   
-  // ✅ FIXED: Test connection with detailed error messages
+  // Test connection with detailed error messages
   static Future<Map<String, dynamic>> testConnection() async {
     try {
-      print('Testing connection to: $serverUrl/health');
-      
       var response = await http.get(
         Uri.parse('$serverUrl/health'),
       ).timeout(const Duration(seconds: 5));
-      
-      print('Test connection response: ${response.statusCode}');
       
       if (response.statusCode == 200) {
         var data = json.decode(response.body);
@@ -278,7 +256,7 @@ class ApiService {
             'Please check:\n'
             '1. Server is running at $serverUrl\n'
             '2. Both devices on same WiFi\n'
-            '3. IP address is correct '
+            '3. IP address is correct'
       };
     } catch (e) {
       return {
