@@ -95,11 +95,13 @@ The system consists of **four integrated AI components**:
 - Hands-free financial assistance
 - Context-aware voice announcements 
 
-### 3️⃣ AI-Based Navigation Assistant
-- Obstacle detection  
-- Scene understanding  
-- Adaptive voice guidance  
-- Safer independent mobility  
+### 3️⃣ Smart Context Aware Navigation Assistant
+- Object Detection & Identification 
+- Object finding using Voice command 
+- Spatial Awareness
+- Contextual Queries
+- Obstacle Avoidance
+- IoT Smart Stick
 
 ### 4️⃣ AI Wardrobe Recommendation System
 - CNN-based clothing classification  
