@@ -1,267 +1,325 @@
-# FILE: app.py
-# ============================================================================
-# INTEGRATED MAIN APPLICATION
-# Smart Wallet + Blind Assistant System
-# ============================================================================
-
-from flask import Flask, jsonify
+import base64
+import cv2
+import numpy as np
+from flask import Flask, request, jsonify
 from flask_cors import CORS
-from pathlib import Path
-import logging
-import os
+from ultralytics import YOLO
+import time
+import torch
 
-# Configuration
-from config import Config
+import core
+from depth_estimator import DepthEstimator
+from navigation_engine import get_navigation_for_response
 
-# Database initialization
-from app.models.database import init_all_databases, ensure_database_ready
+# ✅ Object Finder imports
+from object_finder.detection import MultiModelDetector, process_frame
+from object_finder.voice import build_object_map, process_voice_command_text
+from object_finder.state import state as finder_state
 
-# ============================================================================
-# IMPORT ALL BLUEPRINTS
-# ============================================================================
 
-# Smart Wallet Routes
-from app.routes.bill_routes import bill_bp
-from app.routes.wallet_routes import wallet_bp
-from app.routes.currency_routes import currency_bp
-from app.routes.legacy_routes import legacy_bp
+MODEL_PATH = "yolov8m-oiv7.pt"
+CUSTOM_MODEL_PATH = "models/door_stairs_model.pt"
 
-# Blind Assistant Routes
-from routes.age_gender_routes import age_gender_bp
-from routes.face_recognition_routes import face_recognition_bp
-from routes.attributes_routes import attributes_bp
+app = Flask(__name__)
+CORS(app)
 
-# ============================================================================
-# LOGGING SETUP
-# ============================================================================
+print("=" * 50)
+print("🚀 FAST BLIND ASSIST SERVER v2")
+print("=" * 50)
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
+# ==========================================
+# LOAD MODELS
+# ==========================================
+print("Loading models...")
+model = YOLO(MODEL_PATH)
+
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+print(f"📱 Device: {DEVICE}")
+
+# ✅ Warm up base model
+dummy = np.zeros((480, 480, 3), dtype=np.uint8)
+model(dummy, verbose=False)
+print("✅ YOLO warmed up")
+
+# ✅ Load custom model
+custom_model = None
+try:
+    custom_model = YOLO(CUSTOM_MODEL_PATH)
+    custom_model(dummy, verbose=False)
+    print(f"✅ Custom model: {custom_model.names}")
+except Exception as e:
+    print(f"⚠️ Custom model: {e}")
+
+# ✅ Load MiDaS depth model
+depth_estimator = None
+try:
+    depth_estimator = DepthEstimator(model_type="MiDaS_small")
+    depth_estimator.estimate_depth(dummy)
+    print("✅ MiDaS warmed up")
+except Exception as e:
+    print(f"⚠️ MiDaS: {e}")
+
+
+# ==========================================
+# OBJECT FINDER MODE INIT
+# ==========================================
+finder_detector = MultiModelDetector(model, custom_model)
+
+# ✅ FIXED: Now returns tuple (obj_map, exact_names)
+finder_object_map, finder_exact_names = build_object_map(
+    model.names,
+    custom_model.names if custom_model else None
 )
-logger = logging.getLogger(__name__)
+print(f"✅ Finder mode ready | Objects supported: {len(set(finder_object_map.values()))}")
+print(f"✅ Exact YOLO names: {len(finder_exact_names)}")
 
-# ============================================================================
-# CREATE FLASK APP
-# ============================================================================
 
-def create_app():
-    """Create and configure the integrated Flask application"""
-    
-    app = Flask(__name__)
-    app.config.from_object(Config)
-    
-    # Enable CORS for all routes
-    CORS(app, resources={r"/*": {"origins": "*"}})
-    
-    # ========================================================================
-    # INITIALIZE SYSTEMS
-    # ========================================================================
-    
-    logger.info("="*80)
-    logger.info("  🚀 INTEGRATED SYSTEM - STARTING UP")
-    logger.info("="*80)
-    
-    # Create required directories
-    Config.create_required_directories()
-    
-    # Initialize Smart Wallet Database
-    logger.info("Initializing Smart Wallet Database...")
-    init_all_databases()
-    ensure_database_ready()
-    logger.info("✓ Smart Wallet Database ready")
-    
-    # Verify Tesseract for OCR
-    tesseract_ok = Config.verify_tesseract()
-    
-    logger.info("="*80)
-    
-    # ========================================================================
-    # REGISTER BLUEPRINTS
-    # ========================================================================
-    
-    # Smart Wallet Blueprints
-    app.register_blueprint(bill_bp)          # /api/bill/*
-    app.register_blueprint(wallet_bp)        # /api/wallet/*
-    app.register_blueprint(currency_bp)      # /api/currency/*
-    app.register_blueprint(legacy_bp)        # Legacy endpoints (backward compatibility)
-    
-    # Blind Assistant Blueprints
-    app.register_blueprint(age_gender_bp, url_prefix='/api/age-gender')
-    app.register_blueprint(face_recognition_bp, url_prefix='/api/face-recognition')
-    app.register_blueprint(attributes_bp, url_prefix='/api/attributes')
-    
-    logger.info("✓ All blueprints registered")
-    
-    # ========================================================================
-    # ROOT ENDPOINTS
-    # ========================================================================
-    
-    @app.route('/', methods=['GET'])
-    def root():
-        """Root endpoint - API overview"""
-        return jsonify({
-            'message': 'Integrated Smart Wallet + Blind Assistant API',
-            'version': '2.0.0',
-            'status': 'running',
-            'systems': {
-                'smart_wallet': {
-                    'status': 'active',
-                    'description': 'Bill scanning, wallet management, currency detection',
-                    'endpoints': {
-                        'bills': '/api/bill/*',
-                        'wallet': '/api/wallet/*',
-                        'currency': '/api/currency/*',
-                        'legacy': '/scan_bill_display_only, /get_wallet_balance, etc.'
-                    }
-                },
-                'blind_assistant': {
-                    'status': 'active',
-                    'description': 'Age/gender detection, face recognition, attribute detection',
-                    'endpoints': {
-                        'age_gender': '/api/age-gender/detect',
-                        'face_recognition_register': '/api/face-recognition/register',
-                        'face_recognition_recognize': '/api/face-recognition/recognize',
-                        'attributes': '/api/attributes/detect'
-                    }
+# ==========================================
+# PERFORMANCE TRACKING
+# ==========================================
+times = []
+
+
+# ==========================================
+# HELPERS
+# ==========================================
+def parse_results(result, source: str):
+    detections = []
+    boxes = getattr(result, "boxes", None)
+    if boxes is None:
+        return detections
+
+    names = result.names
+    for box in boxes:
+        try:
+            x1, y1, x2, y2 = box.xyxy[0].tolist()
+            conf = float(box.conf[0])
+            cls_id = int(box.cls[0])
+            label = names.get(cls_id, str(cls_id)) if isinstance(names, dict) else names[cls_id]
+
+            detections.append({
+                "bbox": [x1, y1, x2, y2],
+                "conf": conf,
+                "label": str(label),
+                "source": source
+            })
+        except:
+            continue
+
+    return detections
+
+
+def run_detection(frame):
+    detections = []
+
+    # Base YOLO
+    results = model(frame, conf=0.25, iou=0.5, verbose=False)
+    detections.extend(parse_results(results[0], "yolo"))
+
+    # Custom YOLO
+    if custom_model:
+        try:
+            results2 = custom_model(frame, conf=0.35, iou=0.5, verbose=False)
+            for d in parse_results(results2[0], "custom"):
+                label = d["label"].lower().strip()
+                label_map = {
+                    "door-closed": "door_closed",
+                    "door-open": "door_open",
+                    "door-half-open": "door_half_open",
+                    "stairs": "stairs",
                 }
-            },
-            'documentation': {
-                'health_check': '/health',
-                'smart_wallet_health': '/health/wallet',
-                'blind_assistant_health': '/health/assistant'
-            }
-        }), 200
-    
-    @app.route('/health', methods=['GET'])
-    def health_check():
-        """Complete health check for all systems"""
-        return jsonify({
-            'status': 'healthy',
-            'systems': {
-                'smart_wallet': {
-                    'database': 'connected',
-                    'tesseract': tesseract_ok,
-                    'services': ['bill_scanner', 'wallet', 'currency_detector']
-                },
-                'blind_assistant': {
-                    'services': ['age_gender', 'face_recognition', 'attributes'],
-                    'mongodb': 'connected'
-                }
-            }
-        }), 200
-    
-    @app.route('/health/wallet', methods=['GET'])
-    def health_wallet():
-        """Smart Wallet specific health check"""
-        return jsonify({
-            'system': 'smart_wallet',
-            'status': 'healthy',
-            'tesseract': tesseract_ok,
-            'database': 'connected',
-            'services': {
-                'bill_scanner': 'active',
-                'wallet_service': 'active',
-                'currency_detector': 'active',
-                'ocr_service': 'active'
-            }
-        }), 200
-    
-    @app.route('/health/assistant', methods=['GET'])
-    def health_assistant():
-        """Blind Assistant specific health check"""
-        return jsonify({
-            'system': 'blind_assistant',
-            'status': 'healthy',
-            'mongodb': 'connected',
-            'services': {
-                'age_gender_detection': 'active',
-                'face_recognition': 'active',
-                'attributes_detection': 'active'
-            }
-        }), 200
-    
-    # ========================================================================
-    # ERROR HANDLERS
-    # ========================================================================
-    
-    @app.errorhandler(404)
-    def not_found(error):
-        """Handle 404 errors"""
-        return jsonify({
-            'error': 'Endpoint not found',
-            'message': 'The requested URL was not found on the server',
-            'available_systems': {
-                'smart_wallet': '/api/bill, /api/wallet, /api/currency',
-                'blind_assistant': '/api/age-gender, /api/face-recognition, /api/attributes'
-            }
-        }), 404
-    
-    @app.errorhandler(500)
-    def internal_error(error):
-        """Handle 500 errors"""
-        logger.error(f"Internal Server Error: {error}")
-        return jsonify({
-            'error': 'Internal server error',
-            'message': 'An unexpected error occurred. Please check server logs.'
-        }), 500
-    
-    @app.errorhandler(400)
-    def bad_request(error):
-        """Handle 400 errors"""
-        return jsonify({
-            'error': 'Bad request',
-            'message': 'The request could not be understood by the server'
-        }), 400
-    
-    @app.errorhandler(413)
-    def request_entity_too_large(error):
-        """Handle file too large errors"""
-        return jsonify({
-            'error': 'File too large',
-            'message': f'Maximum file size is {Config.MAX_CONTENT_LENGTH / (1024*1024)}MB'
-        }), 413
-    
-    return app
+                if label in label_map:
+                    d["label"] = label_map[label]
+                    detections.append(d)
+        except:
+            pass
 
-# ============================================================================
-# CREATE APP INSTANCE
-# ============================================================================
+    detections = core.simple_nms(detections, iou_thresh=0.5)
 
-app = create_app()
+    # ⚠️ FIX: core.custom_priority may return tuple due to trailing comma bug
+    prioritized = core.custom_priority(detections)
+    if isinstance(prioritized, tuple):
+        prioritized = prioritized[0]
+    detections = prioritized
 
-# ============================================================================
-# MAIN ENTRY POINT
-# ============================================================================
+    return detections
 
+
+# ==========================================
+# ROUTES
+# ==========================================
+@app.route("/ping", methods=["GET"])
+def ping():
+    avg = sum(times) / len(times) * 1000 if times else 0
+    return jsonify({"status": "ok", "avg_ms": round(avg, 1), "device": DEVICE})
+
+
+@app.route("/detect", methods=["POST"])
+def detect():
+    t0 = time.time()
+
+    data = request.json
+    if not data or "image" not in data:
+        return jsonify({"error": "Missing image"}), 400
+
+    try:
+        # Decode image
+        img_bytes = base64.b64decode(data["image"])
+        frame = cv2.imdecode(np.frombuffer(img_bytes, np.uint8), cv2.IMREAD_COLOR)
+
+        if frame is None:
+            return jsonify({"error": "Invalid image"}), 400
+
+        # Resize for speed
+        h, w = frame.shape[:2]
+        target_size = 480
+        if w != target_size or h != target_size:
+            frame = cv2.resize(frame, (target_size, target_size), interpolation=cv2.INTER_LINEAR)
+            h, w = target_size, target_size
+
+        core.FRAME_WIDTH = w
+        core.FRAME_HEIGHT = h
+
+        # Depth map
+        depth_map = None
+        if depth_estimator:
+            try:
+                depth_map = depth_estimator.estimate_depth(frame)
+            except:
+                pass
+
+        # Detection
+        detections = run_detection(frame)
+
+        # Process results
+        det_infos = []
+        for det in detections:
+            if det["conf"] < core.CONF_THRESHOLD:
+                continue
+
+            x1, y1, x2, y2 = det["bbox"]
+            if (x2 - x1) * (y2 - y1) < 400:
+                continue
+
+            midas_dist = None
+            if depth_map is not None:
+                try:
+                    midas_dist = depth_estimator.get_distance_at_bbox(depth_map, det["bbox"])
+                except:
+                    midas_dist = None
+
+            det_infos.append(core.get_detection_info(det, w, frame_height=h, midas_distance=midas_dist))
+
+        # Navigation
+        navigation = get_navigation_for_response(det_infos)
+
+        # Performance
+        elapsed = time.time() - t0
+        times.append(elapsed)
+        if len(times) > 50:
+            times.pop(0)
+
+        # Compact log
+        objs = ", ".join([f"{o['label'][:8]}({o['distance']:.1f}m)" for o in det_infos[:3]])
+        print(f"⚡{elapsed*1000:.0f}ms | {navigation['command'][:10]} | {objs or 'clear'}")
+
+        return jsonify({
+            "img_w": w,
+            "img_h": h,
+            "objects": det_infos,
+            "navigation": navigation,
+            "ms": round(elapsed * 1000, 1)
+        })
+
+    except Exception as e:
+        print(f"❌ {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+# ==========================================
+# FINDER ROUTES (Object Search Mode)
+# ==========================================
+@app.route("/finder/status", methods=["GET"])
+def finder_status():
+    return jsonify({
+        "ok": True,
+        "target": finder_state.current_target,
+        "show_all": finder_state.show_all,
+        "state": finder_state.current_state
+    })
+
+
+@app.route("/finder/command", methods=["POST"])
+def finder_command():
+    data = request.json
+    if not data or "command" not in data:
+        return jsonify({"ok": False, "error": "Missing command"}), 400
+
+    cmd = str(data["command"]).strip().lower()
+    if not cmd:
+        return jsonify({"ok": False, "error": "Empty command"}), 400
+
+    # ✅ FIXED: Pass exact_names parameter
+    result = process_voice_command_text(cmd, finder_object_map, finder_exact_names)
+
+    return jsonify({
+        "ok": True,
+        "input": cmd,
+        "result": result,
+        "target": finder_state.current_target,
+        "show_all": finder_state.show_all
+    })
+
+
+@app.route("/finder/detect", methods=["POST"])
+def finder_detect():
+    t0 = time.time()
+
+    data = request.json
+    if not data or "image" not in data:
+        return jsonify({"ok": False, "error": "Missing image"}), 400
+
+    try:
+        img_bytes = base64.b64decode(data["image"])
+        frame = cv2.imdecode(np.frombuffer(img_bytes, np.uint8), cv2.IMREAD_COLOR)
+
+        if frame is None:
+            return jsonify({"ok": False, "error": "Invalid image"}), 400
+
+        # Resize for speed
+        target_size = 480
+        h, w = frame.shape[:2]
+        if w != target_size or h != target_size:
+            frame = cv2.resize(frame, (target_size, target_size), interpolation=cv2.INTER_LINEAR)
+
+        # Process frame using finder detector
+        _, info = process_frame(
+            frame=frame,
+            detector=finder_detector,
+            tts=None,  # Flutter handles TTS
+            current_target=finder_state.current_target
+        )
+
+        elapsed = (time.time() - t0) * 1000
+
+        return jsonify({
+            "ok": True,
+            "target": finder_state.current_target,
+            "show_all": finder_state.show_all,
+            "info": info,
+            "ms": round(elapsed, 1)
+        })
+
+    except Exception as e:
+        print(f"❌ Finder error: {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+# ==========================================
+# RUN
+# ==========================================
+print("✅ APP.PY LOADED ✅")
+print("✅ ROUTES:", app.url_map)
 if __name__ == "__main__":
-    print("\n" + "="*80)
-    print("  🚀 INTEGRATED SYSTEM - SMART WALLET + BLIND ASSISTANT")
-    print("="*80)
-    print("\n  📦 SMART WALLET FEATURES:")
-    print("     ✓ Bill Scanner (YOLO + OCR)")
-    print("     ✓ Wallet Management")
-    print("     ✓ Currency Detection")
-    print("     ✓ Transaction Tracking")
-    print("     ✓ Category Classification")
-    print("\n  👁️  BLIND ASSISTANT FEATURES:")
-    print("     ✓ Age & Gender Detection")
-    print("     ✓ Face Recognition")
-    print("     ✓ Attribute Detection (glasses, masks, etc.)")
-    print("     ✓ Person Position & Distance Estimation")
-    print("\n  🌐 Server Info:")
-    print(f"     URL: http://{Config.API_HOST}:{Config.API_PORT}")
-    print(f"     Debug Mode: {Config.DEBUG}")
-    print("\n  📚 API Documentation:")
-    print("     Root: /")
-    print("     Health: /health")
-    print("     Smart Wallet: /api/bill, /api/wallet, /api/currency")
-    print("     Blind Assistant: /api/age-gender, /api/face-recognition, /api/attributes")
-    print("="*80 + "\n")
-    
-    app.run(
-        host=Config.API_HOST,
-        port=Config.API_PORT,
-        debug=Config.DEBUG,
-        threaded=True
-    )
+    print("\n🌐 Starting on http://0.0.0.0:5000\n")
+    app.run(host="0.0.0.0", port=5000, debug=False, threaded=True)
