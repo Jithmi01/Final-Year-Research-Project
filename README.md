@@ -150,6 +150,7 @@ The system consists of **four integrated AI components**:
 - Clothing Classification Dataset  
 
 ---
+<img width="1536" height="1024" alt="ChatGPT Image Jan 3, 2026, 01_49_39 PM" src="https://github.com/user-attachments/assets/577d241a-3c0d-4e7c-84ce-790bce61dcd3" />
 
 ## 📂 Project Structure
 
