@@ -90,7 +90,10 @@ The system consists of **four integrated AI components**:
 
 ### 2️⃣ Smart Currency & Document Reader
 - Currency recognition  
-- OCR-based bill & document reading  
+- OCR-based bill & document reading
+- Automatic expense detection from scanned bills & receipts
+- Categorization of expenses (Food, Transport, Utilities, etc.)
+- smart wallet concept
 - Speech-to-text & text-to-speech  
 - Hands-free financial assistance
 - Context-aware voice announcements 
