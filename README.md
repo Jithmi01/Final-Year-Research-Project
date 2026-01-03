@@ -82,10 +82,10 @@ The system consists of **four integrated AI components**:
 - Real-time face detection & recognition  
 - Known vs unknown person identification  
 - Age & gender prediction  
-- Face attribute detection (glasses, masks, headwear, accessories)  
+- Face attribute detection (eye glasses, masks, headwear, accessories, etc.)  
 - Distance & position awareness
 - Multiple person detection
-- Context-aware voice announcements
+- Voice feedback for blind user queries.
   
 
 ### 2️⃣ Smart Currency & Document Reader
