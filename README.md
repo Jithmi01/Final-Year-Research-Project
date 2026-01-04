@@ -58,8 +58,8 @@ This project proposes a **unified, AI-driven mobile application** that integrate
 - Currency & document reading
 - Smart Wallet  
 - Wardrobe recommendation
-- cloth and color identification
-- cloth direction identification
+- Cloth and color identification
+- Cloth direction identification
 - Context-aware voice announcements 
 
 All features are delivered via **hands-free voice interaction**, ensuring accessibility and ease of use.
@@ -114,8 +114,8 @@ The system consists of **four integrated AI components**:
 - IoT Smart Stick
 
 ### 4️⃣ AI Wardrobe Recommendation System
-- cloth and color identification
-- cloth direction identification 
+- Cloth and color identification
+- Cloth direction identification 
 - Event & weather-based outfit suggestions  
 - Fully voice-controlled interaction  
 
