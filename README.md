@@ -28,6 +28,7 @@ An **AI-powered assistive mobile application** that enhances **visual awareness,
 - [Overview](#overview)
 - [Research Problem](#research-problem)
 - [Proposed Solution](#proposed-solution)
+- [Architecture Diagram](#architecture-diagram)
 - [System Architecture](#system-architecture)
 - [Key Features](#key-features)
 - [Datasets](#datasets)
@@ -112,7 +113,11 @@ The system consists of **four integrated AI components**:
 - Fully voice-controlled interaction  
 
 ---
+## Architechture Diagram
 
+<img width="1374" height="746" alt="image" src="Architechtural daigram.png" />
+
+---
 ## System Architecture
 
 - **Frontend:** Flutter Mobile Application  
