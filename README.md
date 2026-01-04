@@ -28,11 +28,12 @@ An **AI-powered assistive mobile application** that enhances **visual awareness,
 - [Overview](#overview)
 - [Research Problem](#research-problem)
 - [Proposed Solution](#proposed-solution)
-- [Architecture Diagram](#architecture-diagram)
+- [Architecture Diagram](#architechture-diagram)
 - [System Architecture](#system-architecture)
 - [Key Features](#key-features)
 - [Datasets](#datasets)
 - [Project Structure](#-project-structure)
+- [Dependancies](#dependancies)
 - [Project Setup](#project-setup)
 - [Usage](#usage)
 - [Ethical Considerations](#ethical-considerations)
@@ -155,7 +156,6 @@ The system consists of **four integrated AI components**:
 - Clothing Classification Dataset  
 
 ---
-<img width="1536" height="1024" alt="ChatGPT Image Jan 3, 2026, 01_49_39 PM" src="https://github.com/user-attachments/assets/577d241a-3c0d-4e7c-84ce-790bce61dcd3" />
 
 ## 📂 Project Structure
 
@@ -183,6 +183,124 @@ project-root/
 │
 ├── README.md
 └── LICENSE
+```
+---
+
+## Dependancies
+### Backend (requirements.txt)
+
+```bash
+
+#Core Flask 
+Flask==3.0.0
+Flask-CORS==4.0.0
+Werkzeug==3.0.1
+
+# Environment Variables
+python-dotenv==1.0.0
+
+# DEEP LEARNING FRAMEWORKS
+
+# TensorFlow (for Age/Gender and Attributes models)
+tensorflow==2.20.0
+tf-keras==2.15.0
+
+# PyTorch (for Face Recognition - FaceNet)
+torch==2.1.0
+torchvision==0.16.0
+
+# COMPUTER VISION & IMAGE PROCESSING
+
+# OpenCV
+opencv-python==4.8.1.78
+opencv-contrib-python==4.8.1.78
+
+# Image processing
+Pillow==10.1.0
+scikit-image==0.22.0
+
+# OCR - SMART WALLET
+pytesseract==0.3.10
+easyocr==1.7.1
+
+# OBJECT DETECTION - YOLO
+ultralytics==8.0.220
+
+# FACE RECOGNITION - BLIND ASSISTANT
+facenet-pytorch==2.5.3
+
+# DATA PROCESSING
+
+# NumPy - Compatible with TensorFlow 2.15
+numpy>=1.23.0,<1.27.0
+
+# Pandas
+pandas>=2.0.0
+
+# Scientific computing
+scipy>=1.10.0
+scikit-learn>=1.3.0
+
+# UTILITIES
+python-dateutil==2.8.2
+requests>=2.31.0
+h5py>=3.10.0
+
+# Progress bars
+tqdm>=4.65.0
+
+# Text-to-Speech (for announcements)
+pyttsx3==2.90
+
+# PRODUCTION SERVER 
+gunicorn==21.2.0
+```
+
+### Frontend (pubspec.yaml)
+
+```bash
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Camera & Image (UNIFIED - highest compatible versions)
+  camera: ^0.11.2+1
+  image_picker: ^1.1.2
+  image: ^4.1.7
+
+  # HTTP & API (UNIFIED)
+  http: ^1.5.0
+
+  # Text-to-Speech (UNIFIED - latest version)
+  flutter_tts: ^4.2.3
+
+  # Speech Recognition (UNIFIED)
+  speech_to_text: ^7.3.0
+
+  # ML Kit for text recognition (from currency project)
+  google_mlkit_text_recognition: ^0.11.0
+
+  # Permissions (UNIFIED - latest version)
+  permission_handler: ^11.3.1
+
+  # Storage & Path (UNIFIED)
+  path_provider: ^2.1.5
+  path: ^1.9.1
+  shared_preferences: ^2.3.2
+
+  # UI
+  cupertino_icons: ^1.0.6
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
 ```
 ---
 ## Project Setup
