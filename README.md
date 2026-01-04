@@ -55,8 +55,10 @@ This project proposes a **unified, AI-driven mobile application** that integrate
 - Age & gender prediction  
 - Distance estimation  
 - Voice-guided navigation  
-- Currency & document reading  
-- Wardrobe recommendation  
+- Currency & document reading
+- Smart Wallet  
+- Wardrobe recommendation
+- Context-aware voice announcements 
 
 All features are delivered via **hands-free voice interaction**, ensuring accessibility and ease of use.
 
