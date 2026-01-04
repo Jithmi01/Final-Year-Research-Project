@@ -112,7 +112,8 @@ The system consists of **four integrated AI components**:
 - IoT Smart Stick
 
 ### 4️⃣ AI Wardrobe Recommendation System
-- CNN-based clothing classification  
+- cloth and color identification
+- cloth direction identification 
 - Event & weather-based outfit suggestions  
 - Fully voice-controlled interaction  
 
