@@ -67,9 +67,10 @@ All features are delivered via **hands-free voice interaction**, ensuring access
 Current assistive technologies suffer from:
 
 - Lack of contextual awareness  
-- Inability to distinguish known vs unknown persons  
-- Absence of multi-person understanding  
-- Poor integration of vision, voice, and navigation  
+- Inability to distinguish known vs unknown persons with indetailed details.  
+- Absence of multi-person understanding with locations and distances
+- Poor integration of vision, voice, and navigation
+- Voice assistants provide unnecessary information instead of answering user-specific queries.  
 - Limited real-time performance on mobile devices  
 
 This research addresses these gaps by introducing a **real-time, multi-model, backend-powered AI system** optimized for visually impaired users.
