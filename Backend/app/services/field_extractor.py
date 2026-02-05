@@ -1,294 +1,502 @@
-# FILE: app/services/field_extractor.py
-# YOLO-based field extraction from receipts
 # ============================================================================
-
-"""
-Field Extraction Service
-Extract structured fields from receipts using YOLO + OCR
-"""
+# FILE: app/services/field_extractor.py (IMPROVED FOR ACCURACY)
+# Enhanced extraction for visually impaired users
+# ============================================================================
 
 import cv2
 import numpy as np
 from ultralytics import YOLO
-import easyocr
+from typing import Dict, List, Tuple
 import re
-import os
-from typing import Dict, List
-from app.config.settings import OLD_YOLO_MODEL_PATH, NEW_YOLO_MODEL_PATH
+from pathlib import Path
+from config import Config
+from app.services.paddle_ocr_service import get_ocr_service
 
-# ============================================================================
-# MODEL INITIALIZATION
-# ============================================================================
-
-old_model = None
-new_model = None
-reader = None
-
-def init_models():
-    """Initialize YOLO models and EasyOCR"""
-    global old_model, new_model, reader
+class FieldExtractor:
+    """High-accuracy field extraction for visually impaired users"""
     
-    print("[FIELD EXTRACTOR] Initializing models...")
+    def __init__(self):
+        """Initialize with enhanced settings"""
+        # OCR Service
+        self.ocr = get_ocr_service()
+        print(f"[FIELD EXTRACTOR] Using OCR: {self.ocr.get_engine_name()}")
+        
+        # YOLO Models
+        self.old_model = None
+        self.new_model = None
+        self._load_models()
+        
+        self.old_classes = ["company", "address", "date"]
+        self.new_classes = [
+            "menu.cnt", "menu.nm", "menu.price",
+            "total.total_price", "total.cashprice", "total.changeprice"
+        ]
+        
+        # Enhanced filtering thresholds
+        self.MIN_CONFIDENCE = 0.15  # Lower to catch more detections
+        self.MIN_ITEM_NAME_LENGTH = 2
+        self.MIN_PRICE = 0.50
+        self.MAX_PRICE = 10000.00
+        self.MAX_QUANTITY = 50
     
-    # Load old model (for company, date, address)
-    if os.path.exists(OLD_YOLO_MODEL_PATH):
-        try:
-            old_model = YOLO(OLD_YOLO_MODEL_PATH)
-            print("  ✓ OLD model loaded")
-        except Exception as e:
-            print(f"  ✗ OLD model failed: {e}")
-    else:
-        print(f"  ⚠️  OLD model not found: {OLD_YOLO_MODEL_PATH}")
+    def _load_models(self):
+        """Load YOLO models"""
+        if Path(Config.OLD_YOLO_MODEL_PATH).exists():
+            try:
+                self.old_model = YOLO(Config.OLD_YOLO_MODEL_PATH)
+                print(f"[FIELD EXTRACTOR] ✓ Old model loaded")
+            except Exception as e:
+                print(f"[FIELD EXTRACTOR] ✗ Old model failed: {e}")
+        
+        possible_paths = [
+            Config.NEW_YOLO_MODEL_PATH, 
+            "runs/train/cord_improved/weights/best.pt",
+            "models/best.pt"
+        ]
+        for path in possible_paths:
+            if Path(path).exists():
+                try:
+                    self.new_model = YOLO(path)
+                    print(f"[FIELD EXTRACTOR] ✓ New model loaded from {path}")
+                    break
+                except Exception as e:
+                    print(f"[FIELD EXTRACTOR] Failed to load {path}: {e}")
     
-    # Load new model (for total, cash, change)
-    if os.path.exists(NEW_YOLO_MODEL_PATH):
-        try:
-            new_model = YOLO(NEW_YOLO_MODEL_PATH)
-            print("  ✓ NEW model loaded")
-        except Exception as e:
-            print(f"  ✗ NEW model failed: {e}")
-    else:
-        print(f"  ⚠️  NEW model not found: {NEW_YOLO_MODEL_PATH}")
-    
-    # Initialize EasyOCR
-    try:
-        reader = easyocr.Reader(['en'], gpu=False, verbose=False)
-        print("  ✓ EasyOCR ready")
-    except Exception as e:
-        print(f"  ✗ EasyOCR failed: {e}")
-
-# Initialize on import
-init_models()
-
-# ============================================================================
-# FIELD EXTRACTION
-# ============================================================================
-
-def extract_receipt_fields(image_bytes: bytes) -> Dict:
-    """
-    Extract receipt fields using dual YOLO models + OCR
-    
-    Args:
-        image_bytes: Raw image bytes
-    
-    Returns:
-        Dict with success, company, date, address, total, cash, change
-    """
-    try:
+    def extract_all_fields(self, image_bytes: bytes) -> Dict:
+        """Extract all fields with maximum accuracy"""
+        print("\n" + "="*80)
+        print("[EXTRACTION] Starting HIGH-ACCURACY extraction...")
+        
         # Decode image
         nparr = np.frombuffer(image_bytes, np.uint8)
         image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
         
         if image is None:
-            return _error_response("Invalid image")
+            return {'success': False, 'error': 'Failed to decode image'}
         
-        print(f"[FIELD EXTRACTOR] Processing image: {image.shape[1]}x{image.shape[0]}")
+        height, width = image.shape[:2]
+        print(f"[IMAGE] Original size: {width}x{height}")
         
-        # Quick enhancement
-        enhanced = _quick_enhance(image)
+        # Don't downscale - keep original for best OCR
+        # Apply slight denoising only
+        image = cv2.fastNlMeansDenoisingColored(image, None, 10, 10, 7, 21)
         
-        # Detect with OLD model (company, date, address)
-        old_detections = _detect_with_model(
-            old_model, enhanced, ['company', 'date', 'address'], "OLD"
-        )
-        
-        # Detect with NEW model (total, cash, change)
-        new_detections = _detect_with_model(
-            new_model, enhanced, ['total', 'cash', 'change'], "NEW"
-        )
-        
-        # Merge detections
-        all_detections = {**old_detections, **new_detections}
-        
-        # Extract text with OCR
-        extracted = {}
-        for field in ['company', 'date', 'address', 'total', 'cash', 'change']:
-            if field in all_detections:
-                text = _extract_text_from_bbox(
-                    enhanced, all_detections[field]['bbox'], field
-                )
-                if text:
-                    extracted[field] = text
-        
-        # Use cash as fallback for total if total is missing
-        if not extracted.get('total') and extracted.get('cash'):
-            extracted['total'] = extracted['cash']
-            print("[FIELD EXTRACTOR] Using cash as total (fallback)")
-        
-        print(f"[FIELD EXTRACTOR] ✓ Extracted {len(extracted)} fields")
-        
-        return {
+        result = {
             'success': True,
-            'company': extracted.get('company', ''),
-            'date': extracted.get('date', ''),
-            'address': extracted.get('address', ''),
-            'total': extracted.get('total', ''),
-            'cash': extracted.get('cash', ''),
-            'change': extracted.get('change', '')
+            'company': '',
+            'address': '',
+            'date': '',
+            'menu_items': [],
+            'total': '',
+            'cash': '',
+            'change': '',
         }
-    
-    except Exception as e:
-        print(f"[FIELD EXTRACTOR ERROR] {e}")
-        import traceback
-        traceback.print_exc()
-        return _error_response(str(e))
-
-# ============================================================================
-# HELPER FUNCTIONS
-# ============================================================================
-
-def _error_response(error_msg: str) -> Dict:
-    """Create error response"""
-    return {
-        'success': False,
-        'error': error_msg,
-        'company': '',
-        'date': '',
-        'address': '',
-        'total': '',
-        'cash': '',
-        'change': ''
-    }
-
-def _quick_enhance(image: np.ndarray) -> np.ndarray:
-    """Quick CLAHE enhancement"""
-    try:
-        lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
-        l, a, b = cv2.split(lab)
-        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-        l = clahe.apply(l)
-        return cv2.cvtColor(cv2.merge([l, a, b]), cv2.COLOR_LAB2BGR)
-    except:
-        return image
-
-def _detect_with_model(model, image: np.ndarray, fields: List[str], 
-                       model_name: str) -> Dict:
-    """Run YOLO detection"""
-    if model is None:
-        print(f"  [{model_name}] Model not available")
-        return {}
-    
-    detections = {}
-    
-    try:
-        results = model(image, conf=0.15, verbose=False, imgsz=640, half=False)
         
-        for result in results:
-            boxes = result.boxes
-            if boxes is None:
+        # Extract basic info with multiple attempts
+        if self.old_model:
+            old_results = self._extract_basic_info_robust(image)
+            result.update(old_results)
+            print(f"[BASIC INFO] Company: '{result['company']}'")
+            print(f"[BASIC INFO] Address: '{result['address']}'")
+            print(f"[BASIC INFO] Date: '{result['date']}'")
+        
+        # Extract menu items with enhanced accuracy
+        if self.new_model:
+            print("\n[MENU EXTRACTION] Starting...")
+            new_results = self._extract_menu_robust(image)
+            result['menu_items'] = new_results.get('menu_items', [])
+            result['total'] = new_results.get('total', '')
+            result['cash'] = new_results.get('cash', '')
+            result['change'] = new_results.get('change', '')
+            
+            print(f"[MENU EXTRACTION] ✓ Found {len(result['menu_items'])} items")
+            for i, item in enumerate(result['menu_items']):
+                print(f"  [{i+1}] {item['name']} - Rs.{item['price']} x{item['count']}")
+            print(f"[TOTALS] Total: Rs.{result['total']}, Cash: Rs.{result['cash']}, Change: Rs.{result['change']}")
+        
+        print("="*80 + "\n")
+        return result
+    
+    def _extract_basic_info_robust(self, image: np.ndarray) -> Dict:
+        """Extract company, address, date with multiple strategies"""
+        extracted = {'company': '', 'address': '', 'date': ''}
+        
+        try:
+            # Strategy 1: YOLO detection with low confidence
+            results = self.old_model.predict(
+                source=image,
+                imgsz=640,
+                conf=0.10,  # Very low to catch everything
+                iou=0.3,
+                verbose=False
+            )
+            
+            if results and results[0].boxes and len(results[0].boxes) > 0:
+                extracted = self._process_basic_detections(image, results[0].boxes)
+            
+            # Strategy 2: If company still empty, OCR top region
+            if not extracted['company']:
+                print("[FALLBACK] Trying full OCR of top region...")
+                height = image.shape[0]
+                top_region = image[0:int(height * 0.35), :]
+                
+                full_text = self.ocr.extract_text_from_roi(top_region, 'company')
+                if full_text:
+                    lines = [l.strip() for l in full_text.split('\n') if l.strip()]
+                    if lines:
+                        extracted['company'] = self._clean_company(lines[0])
+                        print(f"[FALLBACK] Extracted company: '{extracted['company']}'")
+                        
+                        # Try to find address and date in remaining lines
+                        for line in lines[1:]:
+                            if not extracted['date'] and self._looks_like_date(line):
+                                extracted['date'] = self._clean_date(line)
+                            elif not extracted['address'] and len(line) > 10:
+                                extracted['address'] = self._clean_address(line)
+            
+            return extracted
+            
+        except Exception as e:
+            print(f"[BASIC INFO ERROR] {e}")
+            import traceback
+            traceback.print_exc()
+            return extracted
+    
+    def _process_basic_detections(self, image: np.ndarray, boxes) -> Dict:
+        """Process YOLO detections for basic info"""
+        extracted = {'company': '', 'address': '', 'date': ''}
+        
+        company_candidates = []
+        address_candidates = []
+        date_candidates = []
+        
+        for box in boxes:
+            x1, y1, x2, y2 = map(int, box.xyxy[0])
+            cls_id = int(box.cls[0])
+            conf = float(box.conf[0])
+            
+            if cls_id >= len(self.old_classes):
                 continue
             
-            for i in range(len(boxes)):
-                box = boxes.xyxy[i].cpu().numpy()
-                conf = float(boxes.conf[i].cpu().numpy())
-                cls = int(boxes.cls[i].cpu().numpy())
+            class_name = self.old_classes[cls_id]
+            roi = image[y1:y2, x1:x2]
+            
+            if roi.size == 0:
+                continue
+            
+            # Extract text with OCR
+            text = self.ocr.extract_text_from_roi(roi, class_name)
+            
+            if not text or len(text) < 2:
+                continue
+            
+            # Store candidates
+            if class_name == 'company':
+                cleaned = self._clean_company(text)
+                if self._is_valid_company(cleaned):
+                    company_candidates.append({
+                        'text': cleaned,
+                        'conf': conf,
+                        'y': y1,
+                        'length': len(cleaned)
+                    })
+            
+            elif class_name == 'address':
+                cleaned = self._clean_address(text)
+                if len(cleaned) >= 5:
+                    address_candidates.append({
+                        'text': cleaned,
+                        'conf': conf,
+                        'length': len(cleaned)
+                    })
+            
+            elif class_name == 'date':
+                cleaned = self._clean_date(text)
+                if self._is_valid_date(cleaned):
+                    date_candidates.append({
+                        'text': cleaned,
+                        'conf': conf
+                    })
+        
+        # Select best candidates
+        if company_candidates:
+            # Prefer: high confidence, topmost position, reasonable length
+            company_candidates.sort(key=lambda x: (x['conf'] * 0.6, -x['y'], x['length']), reverse=True)
+            extracted['company'] = company_candidates[0]['text']
+        
+        if address_candidates:
+            # Prefer longest address with decent confidence
+            address_candidates.sort(key=lambda x: (x['length'], x['conf']), reverse=True)
+            extracted['address'] = address_candidates[0]['text']
+        
+        if date_candidates:
+            # Prefer highest confidence
+            date_candidates.sort(key=lambda x: x['conf'], reverse=True)
+            extracted['date'] = date_candidates[0]['text']
+        
+        return extracted
+    
+    def _extract_menu_robust(self, image: np.ndarray) -> Dict:
+        """Extract menu items with enhanced accuracy"""
+        try:
+            # Run YOLO with optimized settings
+            results = self.new_model.predict(
+                source=image,
+                imgsz=1280,  # Higher resolution for better detection
+                conf=self.MIN_CONFIDENCE,
+                iou=0.5,
+                verbose=False
+            )
+            
+            if not results or len(results) == 0 or not results[0].boxes:
+                print("[MENU] No detections found")
+                return {'menu_items': [], 'total': '', 'cash': '', 'change': ''}
+            
+            boxes = results[0].boxes
+            print(f"[MENU] Found {len(boxes)} raw detections")
+            
+            # Collect all detections
+            detections = []
+            totals = {'total': '', 'cash': '', 'change': ''}
+            
+            for idx, box in enumerate(boxes):
+                x1, y1, x2, y2 = map(int, box.xyxy[0])
+                cls_id = int(box.cls[0])
+                conf = float(box.conf[0])
                 
-                class_name = model.names[cls]
-                field = _normalize_class(class_name)
+                if cls_id >= len(self.new_classes):
+                    continue
                 
-                if field in fields:
-                    if field not in detections or conf > detections[field]['conf']:
-                        detections[field] = {
-                            'bbox': box.tolist(),
-                            'conf': conf
-                        }
+                class_name = self.new_classes[cls_id]
+                roi = image[y1:y2, x1:x2]
+                
+                if roi.size == 0:
+                    continue
+                
+                # Extract text
+                text = self.ocr.extract_text_from_roi(roi, class_name)
+                
+                detection = {
+                    'index': idx,
+                    'class': class_name,
+                    'bbox': (x1, y1, x2, y2),
+                    'confidence': conf,
+                    'text': text,
+                    'center_y': (y1 + y2) // 2,
+                    'center_x': (x1 + x2) // 2,
+                    'y1': y1,
+                    'y2': y2,
+                    'x1': x1,
+                    'x2': x2
+                }
+                
+                # Handle totals
+                if class_name == 'total.total_price':
+                    cleaned = self._clean_number(text)
+                    if cleaned and self._is_valid_price(cleaned):
+                        if not totals['total'] or float(cleaned) > float(totals['total'] or 0):
+                            totals['total'] = cleaned
+                
+                elif class_name == 'total.cashprice':
+                    cleaned = self._clean_number(text)
+                    if cleaned:
+                        totals['cash'] = cleaned
+                
+                elif class_name == 'total.changeprice':
+                    cleaned = self._clean_number(text)
+                    if cleaned:
+                        totals['change'] = cleaned
+                
+                detections.append(detection)
+                print(f"  [{idx}] {class_name}: '{text}' @ y={y1}-{y2}, conf={conf:.2f}")
+            
+            # Group menu items
+            menu_items = self._group_menu_items_enhanced(detections, image.shape[0])
+            
+            return {
+                'menu_items': menu_items,
+                'total': totals['total'],
+                'cash': totals['cash'],
+                'change': totals['change']
+            }
+            
+        except Exception as e:
+            print(f"[MENU ERROR] {e}")
+            import traceback
+            traceback.print_exc()
+            return {'menu_items': [], 'total': '', 'cash': '', 'change': ''}
+    
+    def _group_menu_items_enhanced(self, detections: List[Dict], image_height: int) -> List[Dict]:
+        """Enhanced grouping with better validation"""
+        # Filter menu-only detections
+        menu_dets = [d for d in detections if d['class'].startswith('menu.')]
         
-        print(f"  [{model_name}] Found: {list(detections.keys())}")
+        if not menu_dets:
+            print("[GROUPING] No menu detections found")
+            return []
         
-    except Exception as e:
-        print(f"  [{model_name}] Error: {e}")
-    
-    return detections
-
-def _normalize_class(name: str) -> str:
-    """Map YOLO class name to field name"""
-    name = name.lower()
-    
-    if 'company' in name or 'vendor' in name or 'name' in name:
-        return 'company'
-    elif 'date' in name:
-        return 'date'
-    elif 'address' in name:
-        return 'address'
-    elif 'total_price' in name or 'total.total_price' in name:
-        return 'total'
-    elif 'cash_price' in name or 'total.cash_price' in name:
-        return 'cash'
-    elif 'change_price' in name or 'total.change_price' in name:
-        return 'change'
-    
-    return name
-
-def _extract_text_from_bbox(image: np.ndarray, bbox: List[float], 
-                            field: str) -> str:
-    """Extract text from bounding box using EasyOCR"""
-    if reader is None:
-        return ""
-    
-    try:
-        x1, y1, x2, y2 = map(int, bbox)
+        # Skip header region (top 20%)
+        min_y = image_height * 0.20
+        menu_dets = [d for d in menu_dets if d['y1'] > min_y]
+        print(f"[GROUPING] After header filter: {len(menu_dets)} detections")
         
-        # Add padding
-        pad = 10 if field in ['total', 'cash', 'change'] else 5
-        x1 = max(0, x1 - pad)
-        y1 = max(0, y1 - pad)
-        x2 = min(image.shape[1], x2 + pad)
-        y2 = min(image.shape[0], y2 + pad)
+        # Sort by vertical position
+        menu_dets.sort(key=lambda x: x['center_y'])
         
-        # Extract ROI
-        roi = image[y1:y2, x1:x2]
-        if roi.size == 0:
-            return ""
+        # Group into rows (items on same horizontal line)
+        rows = []
+        current_row = []
+        row_threshold = 35  # pixels
         
-        # OCR
-        results = reader.readtext(roi, detail=0)
-        if results:
-            text = ' '.join(results)
-            cleaned = _clean_field_text(text, field)
-            return cleaned
+        for det in menu_dets:
+            if not current_row:
+                current_row = [det]
+            elif abs(det['center_y'] - current_row[0]['center_y']) <= row_threshold:
+                current_row.append(det)
+            else:
+                rows.append(current_row)
+                current_row = [det]
         
-        return ""
+        if current_row:
+            rows.append(current_row)
         
-    except Exception as e:
-        print(f"[OCR ERROR] Field {field}: {e}")
-        return ""
-
-def _clean_field_text(text: str, field: str) -> str:
-    """Clean extracted text based on field type"""
-    if not text:
-        return ""
+        print(f"[GROUPING] Formed {len(rows)} rows")
+        
+        # Build menu items
+        menu_items = []
+        
+        # Words to skip (common non-item text)
+        skip_patterns = [
+            r'^(CITY|SPRING|BLVD|PHONE|Ph:|ORDER|ATM|TABLE|WELCOME|and|RESTAURANT|MIAMI|BEACH)$',
+            r'^[#@$%&*]+$',
+            r'^(TOTAL|SUBTOTAL|TAX|DISCOUNT)$'
+        ]
+        
+        for row_idx, row in enumerate(rows):
+            # Sort row by X position (left to right)
+            row.sort(key=lambda x: x['center_x'])
+            
+            item = {
+                'name': '',
+                'price': '',
+                'count': '1',
+                'price_numeric': 0.0,
+                'count_numeric': 1
+            }
+            
+            name_parts = []
+            
+            for det in row:
+                text = det['text'].strip()
+                
+                if det['class'] == 'menu.nm':
+                    # Skip if matches skip patterns
+                    if any(re.match(pattern, text, re.IGNORECASE) for pattern in skip_patterns):
+                        continue
+                    
+                    # Valid name part
+                    if len(text) >= self.MIN_ITEM_NAME_LENGTH and re.search(r'[a-zA-Z]', text):
+                        name_parts.append(text)
+                
+                elif det['class'] == 'menu.price':
+                    cleaned = self._clean_number(text)
+                    if cleaned and self._is_valid_price(cleaned):
+                        price_val = float(cleaned)
+                        # Take highest price in row (likely the item price)
+                        if price_val > item['price_numeric']:
+                            item['price'] = cleaned
+                            item['price_numeric'] = price_val
+                
+                elif det['class'] == 'menu.cnt':
+                    cleaned = self._clean_number(text)
+                    if cleaned:
+                        try:
+                            count_val = int(float(cleaned))
+                            if 1 <= count_val <= self.MAX_QUANTITY:
+                                item['count'] = str(count_val)
+                                item['count_numeric'] = count_val
+                        except:
+                            pass
+            
+            # Combine name parts
+            if name_parts:
+                item['name'] = ' '.join(name_parts)
+            
+            # Only add if has name AND price
+            if item['name'] and item['price_numeric'] >= self.MIN_PRICE:
+                menu_items.append(item)
+                print(f"  Row {row_idx+1}: ✓ '{item['name']}' - Rs.{item['price']} x{item['count']}")
+            else:
+                print(f"  Row {row_idx+1}: ✗ Skipped - name='{item['name']}', price={item['price_numeric']}")
+        
+        return menu_items
     
-    text = text.strip()
+    # Validation helpers
+    def _is_valid_company(self, text: str) -> bool:
+        return len(text) >= 2 and re.search(r'[a-zA-Z]', text)
     
-    if field == 'company':
-        # Remove if mostly numbers or too short
-        if len(text) < 2 or re.match(r'^[\d\s\-:\.]+$', text):
-            return ""
-        return text[:100]
+    def _is_valid_date(self, text: str) -> bool:
+        patterns = [
+            r'\d{1,2}[-/]\d{1,2}[-/]\d{2,4}',
+            r'\d{4}[-/]\d{1,2}[-/]\d{1,2}',
+            r'\d{1,2}\s+[A-Za-z]{3,}\s+\d{2,4}'
+        ]
+        return any(re.search(p, text) for p in patterns)
     
-    elif field in ['total', 'cash', 'change']:
-        # Extract numbers only
-        nums = re.findall(r'\d+\.?\d*', re.sub(r'[^0-9\.]', ' ', text))
-        if nums:
-            try:
-                amounts = [float(n) for n in nums if 0 < float(n) < 100000]
-                if amounts:
-                    val = max(amounts) if field == 'total' else amounts[0]
-                    return f"{val:.2f}"
-            except:
-                pass
-        return ""
+    def _looks_like_date(self, text: str) -> bool:
+        return bool(re.search(r'\d{1,2}[-/]\d{1,2}', text))
     
-    elif field == 'date':
-        # Try to find date pattern
-        match = re.search(r'\d{1,2}[/-]\d{1,2}[/-]?\d{0,4}', text)
-        if match:
-            return match.group(0)
-        if re.search(r'\d', text) and len(text) < 20:
+    def _is_valid_price(self, price_str: str) -> bool:
+        try:
+            val = float(price_str)
+            return self.MIN_PRICE <= val <= self.MAX_PRICE
+        except:
+            return False
+    
+    # Cleaning helpers
+    def _clean_company(self, text: str) -> str:
+        text = ' '.join(text.split())
+        text = re.sub(r'[^a-zA-Z0-9\s\-&.,()\'"]', '', text)
+        return text.strip('.,;:"\'-')
+    
+    def _clean_address(self, text: str) -> str:
+        return ' '.join(text.split())
+    
+    def _clean_date(self, text: str) -> str:
+        patterns = [
+            r'\d{1,2}[-/]\d{1,2}[-/]\d{2,4}',
+            r'\d{4}[-/]\d{1,2}[-/]\d{1,2}',
+            r'\d{1,2}\s+[A-Za-z]{3,}\s+\d{2,4}'
+        ]
+        for pattern in patterns:
+            match = re.search(pattern, text)
+            if match:
+                return match.group(0)
+        return text.strip()
+    
+    def _clean_number(self, text: str) -> str:
+        # Remove all non-numeric except decimal point
+        text = re.sub(r'[^0-9.]', '', text)
+        
+        # Handle multiple decimals
+        parts = text.split('.')
+        if len(parts) > 2:
+            text = parts[0] + '.' + ''.join(parts[1:])
+        
+        # Validate
+        try:
+            float(text)
             return text
-        return ""
-    
-    elif field == 'address':
-        return text[:150] if len(text) > 2 else ""
-    
-    return text[:100]
+        except:
+            return ''
+
+
+# Singleton
+_extractor = None
+
+def extract_receipt_fields(image_bytes: bytes) -> Dict:
+    """Main extraction function"""
+    global _extractor
+    if _extractor is None:
+        _extractor = FieldExtractor()
+    return _extractor.extract_all_fields(image_bytes)
