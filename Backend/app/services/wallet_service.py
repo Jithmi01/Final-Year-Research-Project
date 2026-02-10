@@ -1,15 +1,18 @@
 # FILE: app/services/wallet_service.py
-# Wallet transaction management and queries
 # ============================================================================
-
-"""
-Wallet Service - Transaction Management
-Handles all wallet operations and natural language queries
-"""
+# WALLET SERVICE - FIREBASE VERSION
+# Transaction management using Firebase Firestore
+# ============================================================================
 
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
-from app.models.database import execute_query, execute_insert, get_db_connection
+from config import Config
+
+# Import based on database type
+if Config.DATABASE_TYPE == 'firebase':
+    from app.models import firebase_database as db
+else:
+    from app.models.database import execute_query, execute_insert, get_db_connection
 
 # ============================================================================
 # WALLET SERVICE
@@ -21,36 +24,27 @@ class WalletService:
     @staticmethod
     def add_transaction(amount: float, trans_type: str, category: str, 
                        description: str = "") -> bool:
-        """
-        Add a new transaction
-        
-        Args:
-            amount: Transaction amount
-            trans_type: 'income' or 'expense'
-            category: Category name
-            description: Optional description
-        
-        Returns:
-            True if successful
-        """
+        """Add a new transaction"""
         try:
-            date_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            
-            query = '''
-                INSERT INTO transactions (date, type, amount, category, description)
-                VALUES (?, ?, ?, ?, ?)
-            '''
-            
-            transaction_id = execute_insert(query, (
-                date_str, trans_type, amount, category, description
-            ))
-            
-            if transaction_id:
-                print(f"[WALLET] ✓ Added {trans_type}: Rs.{amount} ({category})")
-                return True
-            
-            return False
-            
+            if Config.DATABASE_TYPE == 'firebase':
+                transaction_id = db.add_transaction(amount, trans_type, category, description)
+                if transaction_id:
+                    print(f"[WALLET] ✓ Added {trans_type}: Rs.{amount} ({category})")
+                    return True
+                return False
+            else:
+                # SQLite version
+                date_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                query = '''
+                    INSERT INTO transactions (date, type, amount, category, description)
+                    VALUES (?, ?, ?, ?, ?)
+                '''
+                transaction_id = execute_insert(query, (date_str, trans_type, amount, category, description))
+                if transaction_id:
+                    print(f"[WALLET] ✓ Added {trans_type}: Rs.{amount} ({category})")
+                    return True
+                return False
+                
         except Exception as e:
             print(f"[WALLET ERROR] Failed to add transaction: {e}")
             return False
@@ -59,13 +53,17 @@ class WalletService:
     def get_balance() -> float:
         """Get current balance"""
         try:
-            query = '''
-                SELECT SUM(CASE WHEN type = 'income' THEN amount ELSE -amount END)
-                FROM transactions
-            '''
-            result = execute_query(query)
-            return result[0][0] if result and result[0][0] else 0.0
-            
+            if Config.DATABASE_TYPE == 'firebase':
+                return db.get_balance()
+            else:
+                # SQLite version
+                query = '''
+                    SELECT SUM(CASE WHEN type = 'income' THEN amount ELSE -amount END)
+                    FROM transactions
+                '''
+                result = execute_query(query)
+                return result[0][0] if result and result[0][0] else 0.0
+                
         except Exception as e:
             print(f"[WALLET ERROR] Failed to get balance: {e}")
             return 0.0
@@ -74,17 +72,26 @@ class WalletService:
     def get_total_income(days: Optional[int] = None) -> float:
         """Get total income, optionally filtered by days"""
         try:
-            query = "SELECT SUM(amount) FROM transactions WHERE type='income'"
-            params = []
-            
-            if days:
-                date_limit = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
-                query += " AND date >= ?"
-                params.append(date_limit)
-            
-            result = execute_query(query, tuple(params) if params else None)
-            return result[0][0] if result and result[0][0] else 0.0
-            
+            if Config.DATABASE_TYPE == 'firebase':
+                if days:
+                    start_date = datetime.now() - timedelta(days=days)
+                    end_date = datetime.now()
+                    return db.get_total_by_type('income', start_date, end_date)
+                else:
+                    return db.get_total_by_type('income')
+            else:
+                # SQLite version
+                query = "SELECT SUM(amount) FROM transactions WHERE type='income'"
+                params = []
+                
+                if days:
+                    date_limit = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+                    query += " AND date >= ?"
+                    params.append(date_limit)
+                
+                result = execute_query(query, tuple(params) if params else None)
+                return result[0][0] if result and result[0][0] else 0.0
+                
         except Exception as e:
             print(f"[WALLET ERROR] Failed to get income: {e}")
             return 0.0
@@ -93,17 +100,26 @@ class WalletService:
     def get_total_expense(days: Optional[int] = None) -> float:
         """Get total expenses, optionally filtered by days"""
         try:
-            query = "SELECT SUM(amount) FROM transactions WHERE type='expense'"
-            params = []
-            
-            if days:
-                date_limit = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
-                query += " AND date >= ?"
-                params.append(date_limit)
-            
-            result = execute_query(query, tuple(params) if params else None)
-            return result[0][0] if result and result[0][0] else 0.0
-            
+            if Config.DATABASE_TYPE == 'firebase':
+                if days:
+                    start_date = datetime.now() - timedelta(days=days)
+                    end_date = datetime.now()
+                    return db.get_total_by_type('expense', start_date, end_date)
+                else:
+                    return db.get_total_by_type('expense')
+            else:
+                # SQLite version
+                query = "SELECT SUM(amount) FROM transactions WHERE type='expense'"
+                params = []
+                
+                if days:
+                    date_limit = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+                    query += " AND date >= ?"
+                    params.append(date_limit)
+                
+                result = execute_query(query, tuple(params) if params else None)
+                return result[0][0] if result and result[0][0] else 0.0
+                
         except Exception as e:
             print(f"[WALLET ERROR] Failed to get expense: {e}")
             return 0.0
@@ -112,29 +128,31 @@ class WalletService:
     def get_recent_transactions(limit: int = 5) -> List[Dict]:
         """Get recent transactions"""
         try:
-            query = '''
-                SELECT date, type, amount, category, description
-                FROM transactions
-                ORDER BY created_at DESC
-                LIMIT ?
-            '''
-            
-            result = execute_query(query, (limit,))
-            
-            if result:
-                transactions = []
-                for row in result:
-                    transactions.append({
-                        'date': row[0],
-                        'type': row[1],
-                        'amount': row[2],
-                        'category': row[3],
-                        'description': row[4]
-                    })
-                return transactions
-            
-            return []
-            
+            if Config.DATABASE_TYPE == 'firebase':
+                return db.get_recent_transactions(limit)
+            else:
+                # SQLite version
+                query = '''
+                    SELECT date, type, amount, category, description
+                    FROM transactions
+                    ORDER BY created_at DESC
+                    LIMIT ?
+                '''
+                result = execute_query(query, (limit,))
+                
+                if result:
+                    transactions = []
+                    for row in result:
+                        transactions.append({
+                            'date': row[0],
+                            'type': row[1],
+                            'amount': row[2],
+                            'category': row[3],
+                            'description': row[4]
+                        })
+                    return transactions
+                return []
+                
         except Exception as e:
             print(f"[WALLET ERROR] Failed to get transactions: {e}")
             return []
@@ -143,26 +161,29 @@ class WalletService:
     def get_category_breakdown(days: int = 7) -> Dict[str, float]:
         """Get spending breakdown by category"""
         try:
-            date_limit = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
-            
-            query = '''
-                SELECT category, SUM(amount) as total
-                FROM transactions
-                WHERE type = 'expense' AND date >= ?
-                GROUP BY category
-                ORDER BY total DESC
-            '''
-            
-            result = execute_query(query, (date_limit,))
-            
-            if result:
-                breakdown = {}
-                for row in result:
-                    breakdown[row[0]] = row[1]
-                return breakdown
-            
-            return {}
-            
+            if Config.DATABASE_TYPE == 'firebase':
+                start_date = datetime.now() - timedelta(days=days)
+                end_date = datetime.now()
+                return db.get_category_breakdown(start_date, end_date)
+            else:
+                # SQLite version
+                date_limit = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+                query = '''
+                    SELECT category, SUM(amount) as total
+                    FROM transactions
+                    WHERE type = 'expense' AND date >= ?
+                    GROUP BY category
+                    ORDER BY total DESC
+                '''
+                result = execute_query(query, (date_limit,))
+                
+                if result:
+                    breakdown = {}
+                    for row in result:
+                        breakdown[row[0]] = row[1]
+                    return breakdown
+                return {}
+                
         except Exception as e:
             print(f"[WALLET ERROR] Failed to get breakdown: {e}")
             return {}
@@ -171,10 +192,14 @@ class WalletService:
     def get_transaction_count() -> int:
         """Get total number of transactions"""
         try:
-            query = "SELECT COUNT(*) FROM transactions"
-            result = execute_query(query)
-            return result[0][0] if result else 0
-            
+            if Config.DATABASE_TYPE == 'firebase':
+                return db.get_collection_count(Config.TRANSACTIONS_COLLECTION)
+            else:
+                # SQLite version
+                query = "SELECT COUNT(*) FROM transactions"
+                result = execute_query(query)
+                return result[0][0] if result else 0
+                
         except Exception as e:
             print(f"[WALLET ERROR] Failed to get count: {e}")
             return 0
@@ -188,15 +213,7 @@ class QuestionAnswerer:
     
     @staticmethod
     def process_question(question: str) -> str:
-        """
-        Process natural language question and return answer
-        
-        Args:
-            question: User's question
-        
-        Returns:
-            Answer string
-        """
+        """Process natural language question and return answer"""
         q_lower = question.lower()
         
         # Balance queries
@@ -293,38 +310,47 @@ class SummaryGenerator:
             week_start_str = week_start.strftime("%Y-%m-%d")
             week_end_str = week_end.strftime("%Y-%m-%d")
             
-            # Get spending
-            query = '''
-                SELECT COALESCE(SUM(amount), 0)
-                FROM transactions
-                WHERE type = 'expense' AND date >= ? AND date <= ?
-            '''
-            result = execute_query(query, (week_start_str, week_end_str + " 23:59:59"))
-            total_spending = result[0][0] if result else 0.0
-            
-            # Get income
-            query = '''
-                SELECT COALESCE(SUM(amount), 0)
-                FROM transactions
-                WHERE type = 'income' AND date >= ? AND date <= ?
-            '''
-            result = execute_query(query, (week_start_str, week_end_str + " 23:59:59"))
-            total_income = result[0][0] if result else 0.0
-            
-            # Get category breakdown
-            query = '''
-                SELECT category, SUM(amount) as total
-                FROM transactions
-                WHERE type = 'expense' AND date >= ? AND date <= ?
-                GROUP BY category
-                ORDER BY total DESC
-            '''
-            result = execute_query(query, (week_start_str, week_end_str + " 23:59:59"))
-            
-            breakdown = {}
-            if result:
-                for row in result:
-                    breakdown[row[0]] = row[1]
+            if Config.DATABASE_TYPE == 'firebase':
+                # Get spending and income
+                total_spending = db.get_total_by_type('expense', week_start, week_end)
+                total_income = db.get_total_by_type('income', week_start, week_end)
+                
+                # Get category breakdown
+                breakdown = db.get_category_breakdown(week_start, week_end)
+                
+            else:
+                # SQLite version
+                from app.models.database import execute_query
+                
+                query = '''
+                    SELECT COALESCE(SUM(amount), 0)
+                    FROM transactions
+                    WHERE type = 'expense' AND date >= ? AND date <= ?
+                '''
+                result = execute_query(query, (week_start_str, week_end_str + " 23:59:59"))
+                total_spending = result[0][0] if result else 0.0
+                
+                query = '''
+                    SELECT COALESCE(SUM(amount), 0)
+                    FROM transactions
+                    WHERE type = 'income' AND date >= ? AND date <= ?
+                '''
+                result = execute_query(query, (week_start_str, week_end_str + " 23:59:59"))
+                total_income = result[0][0] if result else 0.0
+                
+                query = '''
+                    SELECT category, SUM(amount) as total
+                    FROM transactions
+                    WHERE type = 'expense' AND date >= ? AND date <= ?
+                    GROUP BY category
+                    ORDER BY total DESC
+                '''
+                result = execute_query(query, (week_start_str, week_end_str + " 23:59:59"))
+                
+                breakdown = {}
+                if result:
+                    for row in result:
+                        breakdown[row[0]] = row[1]
             
             return {
                 'week_start': week_start_str,
@@ -342,4 +368,3 @@ class SummaryGenerator:
                 'total_spending': 0.0,
                 'total_income': 0.0
             }
-

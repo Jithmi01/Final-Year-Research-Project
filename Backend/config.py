@@ -3,6 +3,14 @@
 # INTEGRATED CONFIGURATION
 # Smart Wallet + Blind Assistant System
 # ============================================================================
+    # CURRENCY_MODEL_PATH = os.path.join(BASE_DIR, "models", "Currency", "currency.pt")
+    # OLD_YOLO_MODEL_PATH = os.path.join(BASE_DIR, "models", "Sroie", "sroie.pt")
+    # NEW_YOLO_MODEL_PATH = os.path.join(BASE_DIR, "models", "Cord_dataset", "best.pt")
+# FILE: config.py
+# ============================================================================
+# INTEGRATED CONFIGURATION - WITH FIREBASE
+# Smart Wallet + Blind Assistant System
+# ============================================================================
 
 import os
 import pytesseract
@@ -30,10 +38,17 @@ class Config:
     # ========================================================================
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     
-    # SQLite (Smart Wallet)
+    # ⭐ DATABASE TYPE: Choose 'sqlite' or 'firebase'
+    DATABASE_TYPE = os.getenv('DATABASE_TYPE', 'firebase')  # Change to 'firebase'
+    
+    # SQLite (Old - Keep for backup)
     DB_NAME = os.path.join(BASE_DIR, "smart_wallet.db")
     
-    # MongoDB (Face Recognition)
+    # ⭐ Firebase Settings
+    FIREBASE_CREDENTIALS = os.path.join(BASE_DIR, "firebase-credentials.json")
+ 
+    
+    # MongoDB (Face Recognition - Keep as is)
     MONGODB_URI = os.getenv('MONGODB_URI', 
         'mongodb+srv://jithmi4:Jithu2001@cluster0.qas3cqk.mongodb.net/voicevision?retryWrites=true&w=majority&appName=Cluster0')
     MONGODB_DB_NAME = os.getenv('MONGODB_DB_NAME', 'blind_assistant')
@@ -41,6 +56,16 @@ class Config:
     # Voice Recognition - uses same MongoDB but different collection
     VOICE_DATABASE_NAME = os.getenv('DATABASE_NAME', MONGODB_DB_NAME)  # Can be same or different
     VOICE_COLLECTION_NAME = 'voice_users'  # Separate collection for voice users
+    
+    # ========================================================================
+    # FIREBASE COLLECTIONS
+    # ========================================================================
+    # Collection names in Firestore
+    TRANSACTIONS_COLLECTION = 'transactions'
+    BILLS_COLLECTION = 'bills'
+    WEEKLY_SUMMARIES_COLLECTION = 'weekly_summaries'
+    SAVINGS_GOALS_COLLECTION = 'savings_goals'
+    USERS_COLLECTION = 'users'  # For multi-user support
     
     # ========================================================================
     # UPLOAD SETTINGS
@@ -57,21 +82,18 @@ class Config:
     CURRENCY_MODEL_PATH = os.path.join(BASE_DIR, "models", "Currency", "currency.pt")
     OLD_YOLO_MODEL_PATH = os.path.join(BASE_DIR, "models", "Sroie", "sroie.pt")
     NEW_YOLO_MODEL_PATH = os.path.join(BASE_DIR, "models", "Cord_dataset", "best.pt")
-    
+
     # ========================================================================
     # BLIND ASSISTANT - MODEL PATHS
     # ========================================================================
-    # Age & Gender Detection
-    AGE_GENDER_MODEL_PATH = os.path.join(BASE_DIR, "models", "final_model_20251201-102857.h5")
-   
-    # Attributes Detection
+    AGE_GENDER_MODEL_PATH = os.path.join(BASE_DIR, "models", "final_model_20251130-230919.h5")
+    
     ACCESSORIES_MODEL_PATH = os.path.join(BASE_DIR, "models/accessories_model.h5")
     EYEWEAR_MODEL_PATH = os.path.join(BASE_DIR, "models/new_eyeware_model.h5")
     FACEWEAR_MODEL_PATH = os.path.join(BASE_DIR, "models/faceware_model.h5")
     HEADWEAR_MODEL_PATH = os.path.join(BASE_DIR, "models/headware_model.h5")
     NOWEAR_MODEL_PATH = os.path.join(BASE_DIR, "models/noware_model.h5")
     
-    # Face Detection
     FACE_CASCADE_PATH = os.path.join(BASE_DIR, "haarcascade_frontalface_default.xml")
 
     # ========================================================================
@@ -92,16 +114,13 @@ class Config:
     
     if os.path.exists(TESSERACT_CMD):
         pytesseract.pytesseract.tesseract_cmd = TESSERACT_CMD
-    else:
-        print("[CONFIG] ⚠️  Tesseract path not found, using system PATH")
     
-    # OCR Settings
     OCR_CONFIG = {
         'lang': 'eng',
         'gpu': False,
         'max_width': 1024,
         'confidence_threshold': 40,
-        'psm_modes': [3, 4, 6, 11]  # Page segmentation modes to try
+        'psm_modes': [3, 4, 6, 11]
     }
     
     # ========================================================================
@@ -119,7 +138,6 @@ class Config:
     IMG_SIZE = 224
     ATTR_IMG_SIZE = 224
     
-    # Attribute Detection Confidence Thresholds
     CONFIDENCE_THRESHOLDS = {
         'accessories': 0.60,
         'eyewear': 0.65,
@@ -129,7 +147,6 @@ class Config:
     }
     MIN_CONFIDENCE_GAP = 0.15
     
-    # Face Recognition Settings
     KNOWN_FACES_DIR = os.path.join(BASE_DIR, 'data/known_faces')
     EMBEDDINGS_DIR = os.path.join(BASE_DIR, 'data/embeddings')
     FACE_RECOGNITION_THRESHOLD = 0.6

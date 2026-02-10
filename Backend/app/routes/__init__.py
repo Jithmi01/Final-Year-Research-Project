@@ -6,3 +6,4 @@ from .bill_routes import bill_bp
 from .wallet_routes import wallet_bp
 from .currency_routes import currency_bp
 from .legacy_routes import legacy_bp  
+from .document_routes import document_bp

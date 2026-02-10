@@ -1,5 +1,5 @@
 # ============================================================================
-# FILE: app/routes/legacy_routes.py (FIXED - Auto-saves bills to database)
+# FILE: app/routes/legacy_routes.py (COMPLETE WITH /add_transaction)
 # Backward compatibility routes with automatic bill saving
 # ============================================================================
 
@@ -11,9 +11,11 @@ NOW AUTOMATICALLY SAVES BILLS TO DATABASE
 
 from flask import Blueprint, request, jsonify
 import traceback
+from datetime import datetime, timedelta
 from app.services.bill_service import BillExtractor, BillRepository
 from app.services.wallet_service import WalletService, QuestionAnswerer, SummaryGenerator
 from app.config.settings import validate_image_upload
+from app.services.expense_analytics_service import ExpenseAnalytics, ReportGenerator
 
 legacy_bp = Blueprint('legacy', __name__)
 
@@ -245,6 +247,103 @@ def add_wallet_transaction():
         return jsonify({'error': str(e)}), 500
 
 
+# ============================================================================
+# NEW: ADD TRANSACTION ENDPOINT (FOR AR CURRENCY DETECTOR)
+# ============================================================================
+
+@legacy_bp.route('/add_transaction', methods=['POST'])
+def add_transaction():
+    """
+    Add a new transaction (for AR Currency Detector)
+    Request JSON:
+    {
+        "amount": 5000.0,
+        "type": "income",
+        "category": "Currency",
+        "description": "AR Currency Detection - 1 notes"
+    }
+    """
+    try:
+        data = request.get_json()
+        
+        # Validate required fields
+        if not data:
+            return jsonify({
+                'status': 'error',
+                'message': 'No data provided'
+            }), 400
+        
+        amount = data.get('amount')
+        trans_type = data.get('type')
+        category = data.get('category', 'Other')
+        description = data.get('description', '')
+        
+        # Validation
+        if not amount:
+            return jsonify({
+                'status': 'error',
+                'message': 'Amount is required'
+            }), 400
+        
+        if not trans_type or trans_type not in ['income', 'expense']:
+            return jsonify({
+                'status': 'error',
+                'message': 'Type must be "income" or "expense"'
+            }), 400
+        
+        try:
+            amount = float(amount)
+            if amount <= 0:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Amount must be greater than 0'
+                }), 400
+        except ValueError:
+            return jsonify({
+                'status': 'error',
+                'message': 'Invalid amount format'
+            }), 400
+        
+        # Add transaction using WalletService
+        success = WalletService.add_transaction(
+            amount=amount,
+            trans_type=trans_type,
+            category=category,
+            description=description
+        )
+        
+        if success:
+            # Get updated balance
+            balance = WalletService.get_balance()
+            
+            print(f"[LEGACY] ✓ Transaction added: {trans_type} Rs.{amount} ({category})")
+            
+            return jsonify({
+                'status': 'success',
+                'message': f'{trans_type.capitalize()} added successfully',
+                'transaction': {
+                    'amount': amount,
+                    'type': trans_type,
+                    'category': category,
+                    'description': description
+                },
+                'balance': balance
+            }), 200
+        else:
+            return jsonify({
+                'status': 'error',
+                'message': 'Failed to add transaction'
+            }), 500
+    
+    except Exception as e:
+        print(f"[LEGACY ERROR] /add_transaction: {e}")
+        traceback.print_exc()
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+
 @legacy_bp.route('/ask_wallet_question', methods=['POST'])
 def ask_wallet_question():
     """
@@ -449,11 +548,318 @@ def detect_currency_ar():
         print(f"[LEGACY ERROR] /detect_currency_ar: {e}")
         return jsonify({'error': str(e)}), 500
 
-# ============================================================================
-# ADD THIS TO: app/routes/legacy_routes.py
-# Add this endpoint to test and view all saved bills
-# ============================================================================
+@legacy_bp.route('/check_image_quality', methods=['POST'])
+def check_image_quality_legacy():
+    """
+    Check image quality before scanning
+    Used for real-time feedback in camera preview
+    """
+    try:
+        if 'image' not in request.files:
+            return jsonify({
+                'success': False,
+                'error': 'No image provided'
+            }), 400
+        
+        from app.services.image_quality_checker import check_image_quality
+        
+        image_file = request.files['image']
+        image_bytes = image_file.read()
+        
+        # Analyze quality
+        result = check_image_quality(image_bytes)
+        
+        return jsonify({
+            'success': True,
+            'quality_score': result['quality_score'],
+            'is_acceptable': result['is_acceptable'],
+            'voice_prompt': result['voice_prompt'],
+            'recommendations': result['recommendations'],
+            'checks': {
+                'brightness_ok': result.get('brightness_ok', True),
+                'sharpness_ok': result.get('sharpness_ok', True),
+                'size_ok': result.get('size_ok', True),
+                'contrast_ok': result.get('contrast_ok', True)
+            },
+            'issues': [
+                {
+                    'type': issue.type,
+                    'severity': issue.severity,
+                    'message': issue.message,
+                    'voice_prompt': issue.voice_prompt
+                }
+                for issue in result['issues']
+            ]
+        })
+    
+    except Exception as e:
+        print(f"[QUALITY CHECK ERROR] {e}")
+        traceback.print_exc()
+        
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'voice_prompt': 'Error checking image quality. Try again.'
+        }), 500
 
+
+@legacy_bp.route('/scan_bill_with_guidance', methods=['POST'])
+def scan_bill_with_guidance_legacy():
+    """
+    Enhanced bill scanning with quality check first
+    """
+    try:
+        if 'image' not in request.files:
+            return jsonify({
+                'success': False,
+                'error': 'No image provided'
+            }), 400
+        
+        from app.services.image_quality_checker import check_image_quality
+        
+        image_file = request.files['image']
+        image_bytes = image_file.read()
+        
+        # Step 1: Check quality
+        quality_result = check_image_quality(image_bytes)
+        
+        # Step 2: If quality is poor, return guidance without scanning
+        if not quality_result['is_acceptable']:
+            return jsonify({
+                'success': False,
+                'error': 'Image quality too poor',
+                'quality_check': {
+                    'quality_score': quality_result['quality_score'],
+                    'voice_prompt': quality_result['voice_prompt'],
+                    'recommendations': quality_result['recommendations']
+                },
+                'should_retry': True
+            }), 400
+        
+        # Step 3: Quality is good, proceed with scanning
+        bill_info = BillExtractor.process_bill(image_bytes)
+        
+        if not bill_info:
+            return jsonify({
+                'success': False,
+                'error': 'Failed to extract bill information',
+                'voice_prompt': 'Could not read bill. Try again with better lighting.'
+            }), 400
+        
+        # Auto-save bill to database
+        bill_id = BillRepository.save_bill(bill_info)
+        if bill_id:
+            print(f"[LEGACY] ✓ Bill saved with guidance - ID: {bill_id}")
+            bill_info['bill_id'] = bill_id
+        
+        return jsonify({
+            'success': True,
+            'bill_info': bill_info,
+            'quality_score': quality_result['quality_score'],
+            'voice_prompt': f"Bill scanned successfully. {bill_info['vendor']}. Total: {bill_info['total_amount']} rupees."
+        })
+    
+    except Exception as e:
+        print(f"[SCAN WITH GUIDANCE ERROR] {e}")
+        traceback.print_exc()
+        
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'voice_prompt': 'Scan failed. Please try again.'
+        }), 500
+    
+@legacy_bp.route('/get_expense_dashboard', methods=['POST'])
+def get_expense_dashboard_legacy():
+    """
+    LEGACY: Get expense dashboard data (old endpoint name)
+    Maps to: /api/analytics/dashboard
+    """
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({
+                'success': False,
+                'error': 'No data provided'
+            }), 400
+        
+        period = data.get('period', 'weekly')
+        date_str = data.get('date')
+        
+        # Validate period
+        if period not in ['daily', 'weekly', 'monthly']:
+            return jsonify({
+                'success': False,
+                'error': 'Invalid period. Must be daily, weekly, or monthly'
+            }), 400
+        
+        # Parse date
+        try:
+            if date_str:
+                date = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+            else:
+                date = datetime.now()
+        except:
+            date = datetime.now()
+        
+        # Get dashboard data
+        dashboard_data = ExpenseAnalytics.get_dashboard_data(period, date)
+        
+        print(f"[LEGACY] ✓ Dashboard data retrieved: {period} period")
+        
+        return jsonify(dashboard_data), 200
+    
+    except Exception as e:
+        print(f"[LEGACY ERROR] /get_expense_dashboard: {e}")
+        traceback.print_exc()
+        
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@legacy_bp.route('/generate_expense_report', methods=['POST'])
+def generate_expense_report_legacy():
+    """
+    LEGACY: Generate expense report (old endpoint name)
+    Maps to: /api/analytics/report
+    """
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({
+                'success': False,
+                'error': 'No data provided'
+            }), 400
+        
+        period = data.get('period', 'weekly')
+        date_str = data.get('date')
+        
+        # Validate period
+        if period not in ['daily', 'weekly', 'monthly']:
+            return jsonify({
+                'success': False,
+                'error': 'Invalid period'
+            }), 400
+        
+        # Parse date
+        try:
+            if date_str:
+                date = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+            else:
+                date = datetime.now()
+        except:
+            date = datetime.now()
+        
+        # Generate report
+        report = ReportGenerator.generate_expense_report(period, date)
+        
+        print(f"[LEGACY] ✓ Report generated: {period} period")
+        
+        return jsonify(report), 200
+    
+    except Exception as e:
+        print(f"[LEGACY ERROR] /generate_expense_report: {e}")
+        traceback.print_exc()
+        
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@legacy_bp.route('/get_spending_alerts', methods=['GET'])
+def get_spending_alerts():
+    """
+    LEGACY: Get AI-generated spending alerts
+    """
+    try:
+        period = request.args.get('period', 'weekly')
+        
+        # Get current period dashboard
+        dashboard_data = ExpenseAnalytics.get_dashboard_data(period, datetime.now())
+        
+        alerts = dashboard_data.get('alerts', [])
+        
+        print(f"[LEGACY] ✓ Retrieved {len(alerts)} alerts")
+        
+        return jsonify({
+            'success': True,
+            'alerts': alerts,
+            'count': len(alerts)
+        }), 200
+    
+    except Exception as e:
+        print(f"[LEGACY ERROR] /get_spending_alerts: {e}")
+        
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+# ============================================================================
+# TEST ENDPOINTS
+# ============================================================================
+@legacy_bp.route('/test_bill_detection', methods=['POST'])
+def test_bill_detection():
+    """
+    TEST ENDPOINT: Check if bill detection is working
+    """
+    try:
+        if 'image' not in request.files:
+            return jsonify({
+                'success': False,
+                'error': 'No image provided'
+            }), 400
+        
+        image_file = request.files['image']
+        image_bytes = image_file.read()
+        
+        # Decode image for info
+        import cv2
+        import numpy as np
+        nparr = np.frombuffer(image_bytes, np.uint8)
+        image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        
+        print("="*80)
+        print("[TEST] Bill Detection Test")
+        print(f"[TEST] Image size: {image.shape}")
+        
+        # Test bill detection
+        from app.services.bill_detector import detect_bill_position
+        
+        result = detect_bill_position(image_bytes)
+        
+        print(f"[TEST] Bill detected: {result.get('bill_detected')}")
+        print(f"[TEST] Guidance: {result.get('guidance')}")
+        print(f"[TEST] Direction: {result.get('direction')}")
+        print("="*80)
+        
+        return jsonify({
+            'success': True,
+            'test_result': result,
+            'image_info': {
+                'width': image.shape[1],
+                'height': image.shape[0],
+                'channels': image.shape[2] if len(image.shape) > 2 else 1
+            }
+        })
+    
+    except Exception as e:
+        print(f"[TEST ERROR] {e}")
+        import traceback
+        traceback.print_exc()
+        
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }), 500
+
+        
 @legacy_bp.route('/test_get_all_bills', methods=['GET'])
 def test_get_all_bills():
     """
@@ -509,3 +915,4 @@ def test_database_info():
             'success': False,
             'error': str(e)
         }), 500
+

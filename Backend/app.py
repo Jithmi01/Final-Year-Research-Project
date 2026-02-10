@@ -1,7 +1,7 @@
 # FILE: app.py
 # ============================================================================
-# INTEGRATED MAIN APPLICATION
-# Smart Wallet + Blind Assistant System
+# INTEGRATED MAIN APPLICATION - WITH FIREBASE SUPPORT + ANALYTICS
+# Smart Wallet + Blind Assistant System + Expense Dashboard
 # ============================================================================
 
 from flask import Flask, jsonify
@@ -234,7 +234,9 @@ def create_app():
         logger.warning("  ⚠  Voice Recognition NOT INITIALIZED (MongoDB or service failed)")
     
     
-    logger.info("✓ All blueprints registered")
+    if attributes_available:
+        app.register_blueprint(attributes_bp, url_prefix='/api/attributes')
+        logger.info("✓ Attributes blueprint registered")
     
     # ========================================================================
     # ROOT ENDPOINTS
@@ -243,19 +245,28 @@ def create_app():
     @app.route('/', methods=['GET'])
     def root():
         """Root endpoint - API overview"""
+        blind_assistant_status = {
+            'age_gender': 'available' if age_gender_available else 'disabled',
+            'face_recognition': 'available' if face_recognition_available else 'disabled',
+            'attributes': 'available' if attributes_available else 'disabled'
+        }
+        
         return jsonify({
             'message': 'Integrated Smart Wallet + Blind Assistant API',
-            'version': '2.0.0',
+            'version': '2.1.0',  # Updated version
             'status': 'running',
+            'database': Config.DATABASE_TYPE.upper(),
             'systems': {
                 'smart_wallet': {
                     'status': 'active',
-                    'description': 'Bill scanning, wallet management, currency detection',
+                    'database': Config.DATABASE_TYPE,
+                    'description': 'Bill scanning, wallet management, currency detection, expense analytics',
                     'endpoints': {
                         'bills': '/api/bill/*',
                         'wallet': '/api/wallet/*',
                         'currency': '/api/currency/*',
-                        'legacy': '/scan_bill_display_only, /get_wallet_balance, etc.'
+                        'analytics': '/api/analytics/*',  # ⭐ NEW
+                        'legacy': '/scan_bill_display_only, /get_wallet_balance, /get_expense_dashboard, etc.'
                     }
                 },
                                 'integrated_face_detection': {
@@ -299,13 +310,30 @@ def create_app():
     @app.route('/health', methods=['GET'])
     def health_check():
         """Complete health check for all systems"""
+        blind_assistant_services = []
+        if age_gender_available:
+            blind_assistant_services.append('age_gender')
+        if face_recognition_available:
+            blind_assistant_services.append('face_recognition')
+        if attributes_available:
+            blind_assistant_services.append('attributes')
+        
+        db_status = 'connected' if Config.DATABASE_TYPE == 'firebase' else 'connected'
+        
         return jsonify({
             'status': 'healthy',
+            'database': Config.DATABASE_TYPE,
             'systems': {
                 'smart_wallet': {
-                    'database': 'connected',
+                    'database': db_status,
+                    'database_type': Config.DATABASE_TYPE,
                     'tesseract': tesseract_ok,
-                    'services': ['bill_scanner', 'wallet', 'currency_detector']
+                    'services': [
+                        'bill_scanner', 
+                        'wallet', 
+                        'currency_detector',
+                        'expense_analytics'  # ⭐ NEW
+                    ]
                 },
                 'blind_assistant': {
                     'services': ['age_gender', 'face_recognition', 'attributes'],
@@ -325,28 +353,31 @@ def create_app():
         return jsonify({
             'system': 'smart_wallet',
             'status': 'healthy',
+            'database': Config.DATABASE_TYPE,
             'tesseract': tesseract_ok,
-            'database': 'connected',
             'services': {
                 'bill_scanner': 'active',
                 'wallet_service': 'active',
                 'currency_detector': 'active',
-                'ocr_service': 'active'
+                'ocr_service': 'active',
+                'expense_analytics': 'active'  # ⭐ NEW
             }
         }), 200
     
     @app.route('/health/assistant', methods=['GET'])
     def health_assistant():
         """Blind Assistant specific health check"""
+        services_status = {
+            'age_gender_detection': 'active' if age_gender_available else 'disabled',
+            'face_recognition': 'active' if face_recognition_available else 'disabled',
+            'attributes_detection': 'active' if attributes_available else 'disabled'
+        }
+        
         return jsonify({
             'system': 'blind_assistant',
-            'status': 'healthy',
-            'mongodb': 'connected',
-            'services': {
-                'age_gender_detection': 'active',
-                'face_recognition': 'active',
-                'attributes_detection': 'active'
-            }
+            'status': 'partial' if any([age_gender_available, face_recognition_available, attributes_available]) else 'disabled',
+            'mongodb': 'connected' if face_recognition_available else 'not required',
+            'services': services_status
         }), 200
     
     @app.route('/health/voice', methods=['GET'])
@@ -402,7 +433,6 @@ def create_app():
     
     @app.errorhandler(404)
     def not_found(error):
-        """Handle 404 errors"""
         return jsonify({
             'error': 'Endpoint not found',
             'message': 'The requested URL was not found on the server',
@@ -415,7 +445,6 @@ def create_app():
     
     @app.errorhandler(500)
     def internal_error(error):
-        """Handle 500 errors"""
         logger.error(f"Internal Server Error: {error}")
         return jsonify({
             'error': 'Internal server error',
@@ -424,7 +453,6 @@ def create_app():
     
     @app.errorhandler(400)
     def bad_request(error):
-        """Handle 400 errors"""
         return jsonify({
             'error': 'Bad request',
             'message': 'The request could not be understood by the server'
@@ -432,7 +460,6 @@ def create_app():
     
     @app.errorhandler(413)
     def request_entity_too_large(error):
-        """Handle file too large errors"""
         return jsonify({
             'error': 'File too large',
             'message': f'Maximum file size is {Config.MAX_CONTENT_LENGTH / (1024*1024)}MB'
@@ -454,17 +481,31 @@ if __name__ == "__main__":
     print("\n" + "="*80)
     print("  🚀 INTEGRATED SYSTEM - SMART WALLET + BLIND ASSISTANT")
     print("="*80)
+    print(f"\n  💾 DATABASE: {Config.DATABASE_TYPE.upper()}")
     print("\n  📦 SMART WALLET FEATURES:")
     print("     ✓ Bill Scanner (YOLO + OCR)")
     print("     ✓ Wallet Management")
     print("     ✓ Currency Detection")
     print("     ✓ Transaction Tracking")
     print("     ✓ Category Classification")
+    print("     ✓ Expense Analytics Dashboard")  # ⭐ NEW
+    print("     ✓ AI-Powered Spending Alerts")   # ⭐ NEW
     print("\n  👁️  BLIND ASSISTANT FEATURES:")
-    print("     ✓ Age & Gender Detection")
-    print("     ✓ Face Recognition")
-    print("     ✓ Attribute Detection (glasses, masks, etc.)")
-    print("     ✓ Person Position & Distance Estimation")
+    if age_gender_available:
+        print("     ✓ Age & Gender Detection")
+    else:
+        print("     ✗ Age & Gender Detection (model not found)")
+    
+    if face_recognition_available:
+        print("     ✓ Face Recognition")
+    else:
+        print("     ✗ Face Recognition (disabled)")
+    
+    if attributes_available:
+        print("     ✓ Attribute Detection (glasses, masks, etc.)")
+    else:
+        print("     ✗ Attribute Detection (models not found)")
+    
     print("\n  🌐 Server Info:")
     print(f"     URL: http://{Config.API_HOST}:{Config.API_PORT}")
     print(f"     Debug Mode: {Config.DEBUG}")

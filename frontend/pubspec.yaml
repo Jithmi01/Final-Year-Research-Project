@@ -34,15 +34,27 @@ dependencies:
   # Storage & Path (UNIFIED)
   path_provider: ^2.1.5
   path: ^1.9.1
-  shared_preferences: ^2.3.2
+  shared_preferences: ^2.3.2  
+  fl_chart: ^0.65.0
+  intl: ^0.18.1
+  shimmer: ^3.0.0 
+  lottie: ^2.7.0 
+  
+
 
   # UI
   cupertino_icons: ^1.0.6
+  google_fonts: ^6.1.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.0
+  
+dependency_overrides:
+  record_linux: ^1.0.0
+  record_platform_interface: ^1.4.0
+  camera_android_camerax: ^0.5.0+20
 
 flutter:
   uses-material-design: true

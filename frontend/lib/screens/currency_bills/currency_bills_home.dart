@@ -1,11 +1,15 @@
 // lib/screens/currency_bills/currency_bills_home.dart
+// CURRENCY & BILLS HUB - WITH EXPENSE DASHBOARD
+
 import 'package:flutter/material.dart';
 import '../../main.dart';
 import '../../pages/currency/ar_currency_detector_page.dart';
 import '../../pages/bills/bill_scanner_page.dart';
 import '../../pages/smart_wallet/wallet_scanner_page.dart';
 import '../../pages/smart_wallet/wallet_qa_page.dart';
+import '../../pages/dashboard/expense_dashboard_page.dart';  // ⭐ NEW
 import '../../widgets/voice_navigation_widget.dart';
+import '../../pages/document/document_reader_page.dart';
 
 
 class CurrencyBillsHome extends StatelessWidget {
@@ -103,6 +107,45 @@ class CurrencyBillsHome extends StatelessWidget {
                 context,
                 MaterialPageRoute(
                   builder: (context) => BillScannerPage(camera: cameras.first),
+                ),
+              ),
+            ),
+            
+            SizedBox(height: 24),
+
+            _buildFeatureCard(
+              context,
+              icon: Icons.article,
+              title: 'Document Reader',
+              description: 'Read documents with voice Q&A',
+              color: Colors.purple,
+              badge: 'NEW',
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) =>
+                      DocumentReaderPage(camera: cameras.first),
+                ),
+              ),
+            ),
+            SizedBox(height: 24),
+
+            
+            // ⭐ NEW: Analytics Section
+            _buildSectionHeader('📊 Analytics & Reports'),
+            SizedBox(height: 12),
+            
+            _buildFeatureCard(
+              context,
+              icon: Icons.dashboard,
+              title: 'Expense Dashboard',
+              description: 'View spending analytics, AI alerts & reports',
+              color: Colors.blue,
+              badge: 'NEW',
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ExpenseDashboardPage(),
                 ),
               ),
             ),
