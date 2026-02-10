@@ -37,12 +37,18 @@ class Config:
     MONGODB_URI = os.getenv('MONGODB_URI', 
         'mongodb+srv://jithmi4:Jithu2001@cluster0.qas3cqk.mongodb.net/voicevision?retryWrites=true&w=majority&appName=Cluster0')
     MONGODB_DB_NAME = os.getenv('MONGODB_DB_NAME', 'blind_assistant')
+
+    # Voice Recognition - uses same MongoDB but different collection
+    VOICE_DATABASE_NAME = os.getenv('DATABASE_NAME', MONGODB_DB_NAME)  # Can be same or different
+    VOICE_COLLECTION_NAME = 'voice_users'  # Separate collection for voice users
     
     # ========================================================================
     # UPLOAD SETTINGS
     # ========================================================================
     UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
-    ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'bmp', 'gif'}
+    ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'bmp', 'gif', 'wav', 'mp3', 'm4a', 'ogg', 'flac'}
+    ALLOWED_IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'bmp', 'gif'}
+    ALLOWED_AUDIO_EXTENSIONS = {'wav', 'mp3', 'm4a', 'ogg', 'flac'}
     MAX_IMAGE_SIZE = 10 * 1024 * 1024  # 10MB
     
     # ========================================================================
@@ -67,6 +73,17 @@ class Config:
     
     # Face Detection
     FACE_CASCADE_PATH = os.path.join(BASE_DIR, "haarcascade_frontalface_default.xml")
+
+    # ========================================================================
+    # VOICE RECOGNITION - MODEL PATHS & SETTINGS
+    # ========================================================================
+    MODEL_NAME = os.getenv('MODEL_NAME', 'speechbrain/spkrec-ecapa-voxceleb')
+    MODEL_SAVE_DIR = os.getenv('MODEL_SAVE_DIR', os.path.join(BASE_DIR, 'pretrained_models'))
+    
+    # Voice Recognition Thresholds
+    SIMILARITY_THRESHOLD = float(os.getenv('SIMILARITY_THRESHOLD', 0.65))
+    MIN_AUDIO_DURATION = int(os.getenv('MIN_AUDIO_DURATION', 2))  # seconds
+    MAX_AUDIO_DURATION = int(os.getenv('MAX_AUDIO_DURATION', 30))  # seconds
     
     # ========================================================================
     # TESSERACT CONFIG (Smart Wallet OCR)
@@ -118,6 +135,12 @@ class Config:
     FACE_RECOGNITION_THRESHOLD = 0.6
     DETECTION_COOLDOWN = 60  # seconds
     FOCAL_LENGTH = 600  # camera calibration for distance estimation
+
+    # ========================================================================
+    # LOGGING CONFIGURATION
+    # ========================================================================
+    LOG_FILE = 'app.log'
+    LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
     
     # ========================================================================
     # HELPER FUNCTIONS
@@ -138,6 +161,13 @@ class Config:
         """Check if file extension is allowed"""
         return '.' in filename and \
                filename.rsplit('.', 1)[1].lower() in Config.ALLOWED_EXTENSIONS
+    
+    @staticmethod
+    def allowed_image_file(filename):
+        """Check if image file extension is allowed"""
+        return '.' in filename and \
+               filename.rsplit('.', 1)[1].lower() in Config.ALLOWED_IMAGE_EXTENSIONS
+    
     
     @staticmethod
     def get_file_size(file):
@@ -195,3 +225,45 @@ class Config:
                 print(f"[CONFIG] ✗ Model not found: {path}")
             else:
                 print(f"[CONFIG] ✓ Model found: {path}")
+
+
+    @staticmethod
+    def validate():
+        """
+        Validate configuration settings
+        
+        Returns:
+            tuple: (is_valid, error_messages)
+        """
+        errors = []
+        
+        # Check MongoDB URI
+        if not Config.MONGODB_URI:
+            errors.append("MONGODB_URI is not set in .env file")
+        
+        # Check voice threshold range
+        if not (0.0 <= Config.SIMILARITY_THRESHOLD <= 1.0):
+            errors.append(f"SIMILARITY_THRESHOLD must be between 0.0 and 1.0, got {Config.SIMILARITY_THRESHOLD}")
+        
+        # Check duration values
+        if Config.MIN_AUDIO_DURATION <= 0:
+            errors.append(f"MIN_AUDIO_DURATION must be positive, got {Config.MIN_AUDIO_DURATION}")
+        
+        if Config.MAX_AUDIO_DURATION <= Config.MIN_AUDIO_DURATION:
+            errors.append(f"MAX_AUDIO_DURATION must be greater than MIN_AUDIO_DURATION")
+        
+        return (len(errors) == 0, errors)
+    
+    @staticmethod
+    def init_app(app):
+        """
+        Initialize Flask app with configuration
+        
+        Args:
+            app: Flask application instance
+        """
+        # Set Flask config
+        app.config.from_object(Config)
+        
+        # Create required directories
+        Config.create_required_directories()
