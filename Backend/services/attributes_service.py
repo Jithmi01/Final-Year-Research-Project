@@ -26,6 +26,12 @@ class AttributesService:
             'nowear': ['facemarks', 'facepaint', 'facialhair', 'plain']
         }
 
+        self.special_phrases = {
+                   'covered': 'face is covered',
+                   'eyecover': 'eyes are covered'
+        }
+
+
         self.having_attributes = ['facemarks', 'facepaint', 'facialhair']
         self.face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
         self.input_size = (Config.ATTR_IMG_SIZE, Config.ATTR_IMG_SIZE)
@@ -78,6 +84,16 @@ class AttributesService:
         wearing = detected['wearing']
         having = detected['having']
         parts = []
+        special_parts = []
+
+           # Handle special attributes
+        for attr in wearing[:]:
+         if attr in self.special_phrases:
+            special_parts.append(self.special_phrases[attr])
+            wearing.remove(attr)
+            
+             # Normal wearing attributes
+   
         if wearing:
             parts.append(f"wearing {', '.join(wearing)}")
         if having:

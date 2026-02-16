@@ -1,5 +1,3 @@
-# FILE: services/face_recognition_service.py
-
 import os
 import cv2
 import numpy as np
@@ -10,6 +8,8 @@ from pymongo import MongoClient
 import torch
 from facenet_pytorch import MTCNN, InceptionResnetV1
 from config import Config
+from datetime import datetime
+from bson import ObjectId
 
 class FaceRecognitionService:
     def __init__(self, mongodb_uri=None):
@@ -21,10 +21,12 @@ class FaceRecognitionService:
         self.last_detection = {}  # timestamp of last detection
         self.last_seen_time = {}  # formatted last seen
         self.last_seen_file = os.path.join(self.embeddings_dir, "last_seen.pkl")
+        self.registration_metadata = {}  # Store registration dates
+        self.metadata_file = os.path.join(self.embeddings_dir, "metadata.pkl")
 
         # Camera calibration for distance
         self.KNOWN_FACE_WIDTH = 0.16  # meters, average adult face width
-        self.FOCAL_LENGTH = Config.FOCAL_LENGTH  # calibrated for your camera (see notes below)
+        self.FOCAL_LENGTH = Config.FOCAL_LENGTH  # calibrated for your camera
 
         # Models
         self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
@@ -44,6 +46,7 @@ class FaceRecognitionService:
 
         self.load_embeddings()
         self.load_last_seen()
+        self.load_metadata()
 
     # --- Face Embedding ---
     def extract_face_embedding(self, image):
@@ -67,16 +70,51 @@ class FaceRecognitionService:
                 person_dir = os.path.join(self.known_faces_dir, name)
                 Path(person_dir).mkdir(exist_ok=True)
                 cv2.imwrite(os.path.join(person_dir, os.path.basename(img_path)), image)
+        
         if embeddings_list:
-            self.known_embeddings[name] = {"embeddings": embeddings_list, "count": len(embeddings_list)}
+            # Store registration metadata
+            registration_date = datetime.now()
+            self.registration_metadata[name] = {
+                'date': registration_date.strftime("%Y-%m-%d"),
+                'time': registration_date.strftime("%I:%M %p"),
+                'datetime': registration_date.strftime("%Y-%m-%d %I:%M %p"),
+                'timestamp': registration_date.timestamp()
+            }
+            
+            self.known_embeddings[name] = {
+                "embeddings": embeddings_list,
+                "count": len(embeddings_list)
+            }
+            
             self.save_embeddings()
+            self.save_metadata()
+            
+            # Save to MongoDB if available
             if self.mongo_client:
                 self.faces_collection.update_one(
                     {'name': name},
-                    {'$set': {'name': name, 'embeddings':[e.tolist() for e in embeddings_list]}},
+                    {
+                        '$set': {
+                            'name': name,
+                            'embeddings': [e.tolist() for e in embeddings_list],
+                            'registered_date': self.registration_metadata[name]['date'],
+                            'registered_time': self.registration_metadata[name]['time'],
+                            'registered_datetime': self.registration_metadata[name]['datetime'],
+                            'image_count': len(embeddings_list)
+                        }
+                    },
                     upsert=True
                 )
-            return {"success": True, "name": name, "images_processed": len(embeddings_list), "message": f"Registered {name}"}
+            
+            return {
+                "success": True,
+                "name": name,
+                "images_processed": len(embeddings_list),
+                "message": f"Registered {name}",
+                "registered_date": self.registration_metadata[name]['date'],
+                "registered_time": self.registration_metadata[name]['time']
+            }
+        
         return {"success": False, "message": "No valid faces detected"}
 
     # --- Save / Load embeddings ---
@@ -89,6 +127,16 @@ class FaceRecognitionService:
         if os.path.exists(path):
             with open(path, 'rb') as f:
                 self.known_embeddings = pickle.load(f)
+
+    # --- Metadata Management ---
+    def save_metadata(self):
+        with open(self.metadata_file, 'wb') as f:
+            pickle.dump(self.registration_metadata, f)
+
+    def load_metadata(self):
+        if os.path.exists(self.metadata_file):
+            with open(self.metadata_file, 'rb') as f:
+                self.registration_metadata = pickle.load(f)
 
     # --- Last Seen ---
     def save_last_seen(self):
@@ -192,5 +240,148 @@ class FaceRecognitionService:
             'distance_m': distance_m,
             'position': position,
             'last_seen': last_seen_prev,
-            'announcement': announcement
+            'announcement': announcement,
+            'face_box': [x1, y1, x2, y2]
+        }
+
+    # =========================================================================
+    # NEW METHODS FOR PEOPLE MANAGEMENT
+    # =========================================================================
+
+    def get_all_registered_people(self):
+        """Get all registered people with their details"""
+        people_list = []
+        
+        for name, data in self.known_embeddings.items():
+            # Get last seen information
+            last_seen = self.last_seen_time.get(name, 'Never')
+            
+            person_info = {
+                'id': name,  # Using name as ID for now
+                'name': name,
+                'images': data.get('count', 0),
+                'date': self.registration_metadata.get(name, {}).get('date', 'N/A'),
+                'time': self.registration_metadata.get(name, {}).get('time', 'N/A'),
+                'datetime': self.registration_metadata.get(name, {}).get('datetime', 'N/A'),
+                'last_seen': last_seen,
+                'lastSeen': last_seen  # Add both formats for compatibility
+            }
+            people_list.append(person_info)
+        
+        # Sort by registration timestamp (newest first)
+        people_list.sort(
+            key=lambda x: self.registration_metadata.get(x['name'], {}).get('timestamp', 0),
+            reverse=True
+        )
+        
+        return people_list
+
+    def get_person_by_id(self, person_id):
+        """Get details of a specific person by ID (name)"""
+        if person_id in self.known_embeddings:
+            data = self.known_embeddings[person_id]
+            return {
+                'id': person_id,
+                'name': person_id,
+                'images': data.get('count', 0),
+                'date': self.registration_metadata.get(person_id, {}).get('date', 'N/A'),
+                'time': self.registration_metadata.get(person_id, {}).get('time', 'N/A'),
+                'datetime': self.registration_metadata.get(person_id, {}).get('datetime', 'N/A'),
+                'last_seen': self.last_seen_time.get(person_id, 'Never')
+            }
+        return None
+
+    def delete_person(self, person_id):
+        """Delete a registered person"""
+        if person_id in self.known_embeddings:
+            # Remove from embeddings
+            del self.known_embeddings[person_id]
+            
+            # Remove from metadata
+            if person_id in self.registration_metadata:
+                del self.registration_metadata[person_id]
+            
+            # Remove from last seen
+            if person_id in self.last_seen_time:
+                del self.last_seen_time[person_id]
+            
+            # Remove from last detection
+            if person_id in self.last_detection:
+                del self.last_detection[person_id]
+            
+            # Delete image folder
+            person_dir = os.path.join(self.known_faces_dir, person_id)
+            if os.path.exists(person_dir):
+                import shutil
+                shutil.rmtree(person_dir)
+            
+            # Save updated data
+            self.save_embeddings()
+            self.save_metadata()
+            self.save_last_seen()
+            
+            # Remove from MongoDB if available
+            if self.mongo_client:
+                self.faces_collection.delete_one({'name': person_id})
+            
+            return {
+                'success': True,
+                'message': f'Person {person_id} deleted successfully'
+            }
+        else:
+            return {
+                'success': False,
+                'message': 'Person not found'
+            }
+
+    def update_person_name(self, old_name, new_name):
+        """Update a person's name"""
+        if old_name not in self.known_embeddings:
+            return {
+                'success': False,
+                'message': 'Person not found'
+            }
+        
+        if new_name in self.known_embeddings and new_name != old_name:
+            return {
+                'success': False,
+                'message': 'Name already exists'
+            }
+        
+        # Update embeddings
+        self.known_embeddings[new_name] = self.known_embeddings.pop(old_name)
+        
+        # Update metadata
+        if old_name in self.registration_metadata:
+            self.registration_metadata[new_name] = self.registration_metadata.pop(old_name)
+        
+        # Update last seen
+        if old_name in self.last_seen_time:
+            self.last_seen_time[new_name] = self.last_seen_time.pop(old_name)
+        
+        # Update last detection
+        if old_name in self.last_detection:
+            self.last_detection[new_name] = self.last_detection.pop(old_name)
+        
+        # Rename folder
+        old_dir = os.path.join(self.known_faces_dir, old_name)
+        new_dir = os.path.join(self.known_faces_dir, new_name)
+        if os.path.exists(old_dir):
+            os.rename(old_dir, new_dir)
+        
+        # Save updated data
+        self.save_embeddings()
+        self.save_metadata()
+        self.save_last_seen()
+        
+        # Update MongoDB if available
+        if self.mongo_client:
+            self.faces_collection.update_one(
+                {'name': old_name},
+                {'$set': {'name': new_name}}
+            )
+        
+        return {
+            'success': True,
+            'message': f'Person renamed from {old_name} to {new_name}'
         }

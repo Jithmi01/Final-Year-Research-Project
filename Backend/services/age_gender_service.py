@@ -35,7 +35,7 @@ class AgeGenderService:
 
         # Load model
         self.model = self._load_model()
-        logger.info("✓ Age & Gender model loaded successfully")
+        logger.info(" Age & Gender model loaded successfully")
 
     def _load_model(self):
         try:
@@ -91,7 +91,7 @@ class AgeGenderService:
                 loss_weights={"gender": 0.4, "age": 0.6},
                 metrics={"gender": "accuracy", "age": "accuracy"}
             )
-            logger.info("✓ Model rebuilt and weights loaded successfully")
+            logger.info(" Model rebuilt and weights loaded successfully")
             return model
 
     def preprocess_face(self, face_img):
