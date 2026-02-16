@@ -1,9 +1,8 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:flutter_tts/flutter_tts.dart';
-import '../../services/api_service.dart';
-import '../../widgets/voice_navigation_widget.dart';
+import 'package:camera/camera.dart';
+import '/services/api_service.dart';
 
 class FaceRecognitionScreen extends StatefulWidget {
   const FaceRecognitionScreen({super.key});
@@ -13,396 +12,418 @@ class FaceRecognitionScreen extends StatefulWidget {
 }
 
 class _FaceRecognitionScreenState extends State<FaceRecognitionScreen> {
-  final ImagePicker _picker = ImagePicker();
   final FlutterTts flutterTts = FlutterTts();
-  final TextEditingController _nameController = TextEditingController();
 
-  bool _isRegistering = false;
-  List<File> _registrationImages = [];
-  File? _recognitionImage;
-  Map<String, dynamic>? _recognitionResult;
   bool _isLoading = false;
+
+  List<CameraDescription>? cameras;
+  CameraController? _cameraController;
+  bool _isFrontCamera = true;
+
+  Map<String, dynamic>? _recognitionResult;
 
   @override
   void initState() {
     super.initState();
     _initTts();
-    _speak(
-        "Face Recognition. You can register a new person or recognize someone.");
+    _initCamera();
   }
 
   Future<void> _initTts() async {
     await flutterTts.setLanguage("en-US");
     await flutterTts.setSpeechRate(0.5);
-    await flutterTts.setVolume(1.0);
-    await flutterTts.setPitch(1.0);
+    _speak("Face recognition screen. Tap to recognize faces.");
   }
 
   Future<void> _speak(String text) async {
+    await flutterTts.stop();
     await flutterTts.speak(text);
   }
 
-  // ---------------- Registration ----------------
-  Future<void> _addRegistrationImage() async {
-    if (_registrationImages.length >= 5) {
-      _speak("Maximum 5 images allowed");
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Maximum 5 images allowed')),
-      );
-      return;
-    }
-
-    try {
-      final XFile? image = await _picker.pickImage(
-        source: ImageSource.camera,
-        imageQuality: 85,
-      );
-
-      if (image != null) {
-        setState(() {
-          _registrationImages.add(File(image.path));
-        });
-        _speak(
-            "Image ${_registrationImages.length} added. ${5 - _registrationImages.length} remaining.");
-      }
-    } catch (e) {
-      _speak("Error capturing image");
-    }
+  Future<void> _initCamera() async {
+    cameras = await availableCameras();
+    _startCamera();
   }
 
-  Future<void> _registerPerson() async {
-    if (_nameController.text.isEmpty) {
-      _speak("Please enter a name");
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a name')),
-      );
+  void _startCamera() {
+    if (cameras == null || cameras!.isEmpty) return;
+    
+    final camera = _isFrontCamera
+        ? cameras!.firstWhere((c) => c.lensDirection == CameraLensDirection.front)
+        : cameras!.firstWhere((c) => c.lensDirection == CameraLensDirection.back);
+
+    _cameraController?.dispose();
+    _cameraController = CameraController(
+      camera,
+      ResolutionPreset.high,
+      enableAudio: false,
+    );
+
+    _cameraController!.initialize().then((_) {
+      if (!mounted) return;
+      setState(() {});
+    });
+  }
+
+  void _switchCamera() {
+    setState(() => _isFrontCamera = !_isFrontCamera);
+    _startCamera();
+    _speak(_isFrontCamera ? "Front camera" : "Back camera");
+  }
+
+  Future<void> _captureImage() async {
+    if (_cameraController == null || !_cameraController!.value.isInitialized || _isLoading) {
       return;
     }
 
-    if (_registrationImages.isEmpty) {
-      _speak("Please add at least one image");
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please add at least one image')),
-      );
-      return;
-    }
+    final image = await _cameraController!.takePicture();
+    final file = File(image.path);
 
     setState(() {
       _isLoading = true;
+      _recognitionResult = null;
     });
 
+    _speak("Recognizing face");
+
     try {
-      final result = await ApiService.registerPerson(
-        _nameController.text,
-        _registrationImages,
-      );
-
-      _speak(result['message'] ?? 'Registration successful');
-
+      final result = await ApiService.recognizePerson(file);
       setState(() {
+        _recognitionResult = result;
         _isLoading = false;
-        _registrationImages.clear();
-        _nameController.clear();
       });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(result['message'] ?? 'Success')),
-      );
+      _speak(result['announcement'] ?? "Recognition completed");
     } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
-      _speak("Registration failed: ${e.toString()}");
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
+      _speak("Recognition failed");
+      setState(() => _isLoading = false);
     }
   }
 
-  // ---------------- Recognition ----------------
-  Future<void> _recognizePerson(ImageSource source) async {
-    try {
-      final XFile? image = await _picker.pickImage(
-        source: source,
-        imageQuality: 85,
-      );
-
-      if (image != null) {
-        setState(() {
-          _recognitionImage = File(image.path);
-          _recognitionResult = null;
-          _isLoading = true;
-        });
-
-        _speak("Processing image...");
-
-        final result = await ApiService.recognizePerson(_recognitionImage!);
-
-        setState(() {
-          _recognitionResult = result;
-          _isLoading = false;
-        });
-
-        if (result['announcement'] != null) {
-          _speak(result['announcement']);
-        }
-      }
-    } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
-      _speak("Recognition failed: ${e.toString()}");
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
-    }
-  }
-
-  // ---------------- UI Widgets ----------------
-  Widget _buildRegistrationSection() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Text(
-              'Register New Person',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: 'Person Name',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.person),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text('Images: ${_registrationImages.length}/5',
-                style: const TextStyle(fontSize: 16)),
-            const SizedBox(height: 8),
-            if (_registrationImages.isNotEmpty)
-              SizedBox(
-                height: 100,
-                child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: _registrationImages.length,
-                  itemBuilder: (context, index) {
-                    return Stack(
-                      children: [
-                        Container(
-                          margin: const EdgeInsets.only(right: 8),
-                          width: 100,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(8),
-                            image: DecorationImage(
-                              image: FileImage(_registrationImages[index]),
-                              fit: BoxFit.cover,
-                            ),
-                          ),
-                        ),
-                        Positioned(
-                          top: 0,
-                          right: 8,
-                          child: IconButton(
-                            icon: const Icon(Icons.close, color: Colors.red),
-                            onPressed: () {
-                              setState(() {
-                                _registrationImages.removeAt(index);
-                              });
-                            },
-                          ),
-                        ),
-                      ],
-                    );
-                  },
-                ),
-              ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: _isLoading ? null : _addRegistrationImage,
-                    icon: const Icon(Icons.add_a_photo),
-                    label: const Text('Add Photo'),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: _isLoading ? null : _registerPerson,
-                    icon: const Icon(Icons.save),
-                    label: const Text('Register'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      foregroundColor: Colors.white,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Color(0xFF1E1E1E),
+      appBar: AppBar(
+        backgroundColor: Color(0xFF1E1E1E),
+        title: Text("Face Recognition"),
       ),
+      body: _buildRecognitionView(),
     );
   }
 
-  Widget _buildRecognitionSection() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Text(
-              'Recognize Person',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            if (_recognitionImage != null)
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Image.file(
-                  _recognitionImage!,
-                  height: 200,
-                  fit: BoxFit.cover,
+  Widget _buildRecognitionView() {
+    return Column(
+      children: [
+        // Camera View
+        Expanded(
+          child: Stack(
+            children: [
+              GestureDetector(
+                onTap: _captureImage,
+                child: _cameraController != null &&
+                        _cameraController!.value.isInitialized
+                    ? Container(
+                        color: Colors.black,
+                        child: Stack(
+                          children: [
+                            Positioned.fill(
+                              child: CameraPreview(_cameraController!),
+                            ),
+                            if (_recognitionResult != null &&
+                                _recognitionResult!['face_box'] != null)
+                              CustomPaint(
+                                painter: FaceBoxPainter(
+                                  _recognitionResult!['face_box'],
+                                  _cameraController!.value.previewSize!,
+                                ),
+                              ),
+                          ],
+                        ),
+                      )
+                    : Container(
+                        color: Colors.black,
+                        child: Center(
+                          child: CircularProgressIndicator(color: Colors.white),
+                        ),
+                      ),
+              ),
+
+              // Camera Switch Button
+              Positioned(
+                top: 20,
+                right: 20,
+                child: GestureDetector(
+                  onTap: _switchCamera,
+                  child: Container(
+                    padding: EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.black54,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.flip_camera_ios,
+                      color: Colors.white,
+                      size: 32,
+                    ),
+                  ),
                 ),
               ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: _isLoading
-                        ? null
-                        : () => _recognizePerson(ImageSource.camera),
-                    icon: const Icon(Icons.camera_alt),
-                    label: const Text('Camera'),
+
+              // Capture Instruction
+              if (!_isLoading)
+                Positioned(
+                  bottom: 20,
+                  left: 0,
+                  right: 0,
+                  child: Center(
+                    child: Container(
+                      padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.green.withOpacity(0.9),
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.touch_app, color: Colors.white),
+                          SizedBox(width: 8),
+                          Text(
+                            'Tap to recognize face',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: _isLoading
-                        ? null
-                        : () => _recognizePerson(ImageSource.gallery),
-                    icon: const Icon(Icons.photo_library),
-                    label: const Text('Gallery'),
+
+              // Loading Overlay
+              if (_isLoading)
+                Positioned.fill(
+                  child: Container(
+                    color: Colors.black54,
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 4,
+                          ),
+                          SizedBox(height: 20),
+                          Text(
+                            'Recognizing...',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
-              ],
-            ),
-            if (_recognitionResult != null) ...[
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: _recognitionResult!['name'] == 'Unknown'
-                      ? Colors.red[50]
-                      : Colors.green[50],
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: _recognitionResult!['name'] == 'Unknown'
-                        ? Colors.red
-                        : Colors.green,
-                  ),
-                ),
+            ],
+          ),
+        ),
+
+        // Recognition Result
+        if (_recognitionResult != null && !_isLoading) _buildRecognitionResult(),
+      ],
+    );
+  }
+
+  Widget _buildRecognitionResult() {
+    final name = _recognitionResult!['name'] ?? 'Unknown';
+    final confidence = _recognitionResult!['confidence'] ?? 0;
+    final distance = _recognitionResult!['distance_m'];
+    final position = _recognitionResult!['position'];
+    final lastSeen = _recognitionResult!['last_seen'];
+
+    return Container(
+      padding: EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: name == 'Unknown'
+              ? [Colors.red[900]!, Colors.red[700]!]
+              : [Colors.green[900]!, Colors.green[700]!],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Icon(
+                name == 'Unknown' ? Icons.person_off : Icons.person,
+                color: Colors.white,
+                size: 32,
+              ),
+              SizedBox(width: 12),
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Name: ${_recognitionResult!['name']}',
-                      style: const TextStyle(
-                        fontSize: 18,
+                      name,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    if (_recognitionResult!['distance_m'] != null)
+                    if (name != 'Unknown')
                       Text(
-                        'Distance: ${_recognitionResult!['distance_m']} m',
-                        style: const TextStyle(fontSize: 16),
+                        'Confidence: $confidence%',
+                        style: TextStyle(color: Colors.white70, fontSize: 14),
                       ),
-                    if (_recognitionResult!['position'] != null)
-                      Text(
-                        'Position: ${_recognitionResult!['position']}',
-                        style: const TextStyle(fontSize: 16),
-                      ),
-                    if (_recognitionResult!['last_seen'] != null)
-                      Text(
-                        'Last seen: ${_recognitionResult!['last_seen']}',
-                        style: const TextStyle(fontSize: 14),
-                      ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        const Icon(Icons.volume_up, color: Colors.blue),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            _recognitionResult!['announcement'] ?? '',
-                            style: const TextStyle(fontSize: 14),
-                          ),
-                        ),
-                      ],
-                    ),
                   ],
                 ),
               ),
             ],
+          ),
+          SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _buildInfoChip(
+                  icon: Icons.straighten,
+                  label: 'Distance',
+                  value: '${distance}m',
+                ),
+              ),
+              SizedBox(width: 12),
+              Expanded(
+                child: _buildInfoChip(
+                  icon: Icons.place,
+                  label: 'Position',
+                  value: position,
+                ),
+              ),
+            ],
+          ),
+          if (lastSeen != null) ...[
+            SizedBox(height: 12),
+            Container(
+              padding: EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.access_time, color: Colors.white, size: 20),
+                  SizedBox(width: 8),
+                  Text(
+                    'Last seen: $lastSeen',
+                    style: TextStyle(color: Colors.white, fontSize: 14),
+                  ),
+                ],
+              ),
+            ),
           ],
-        ),
+          SizedBox(height: 16),
+          GestureDetector(
+            onTap: () => _speak(_recognitionResult!['announcement'] ?? ''),
+            child: Container(
+              padding: EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.volume_up, color: Colors.white),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      _recognitionResult!['announcement'] ?? '',
+                      style: TextStyle(color: Colors.white, fontSize: 14),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  // ---------------- Main Build ----------------
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Face Recognition'),
-        actions: [
-          Switch(
-            value: _isRegistering,
-            onChanged: (value) {
-              setState(() {
-                _isRegistering = value;
-              });
-              _speak(_isRegistering ? "Registration mode" : "Recognition mode");
-            },
-            activeColor: Colors.white,
-          ),
-          VoiceNavigationWidget(currentPage: 'face_recognition'),
-        ],
+  Widget _buildInfoChip({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
+    return Container(
+      padding: EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(12),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            if (_isLoading)
-              const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(20.0),
-                  child: CircularProgressIndicator(),
-                ),
-              ),
-            if (_isRegistering)
-              _buildRegistrationSection()
-            else
-              _buildRecognitionSection(),
-          ],
-        ),
+      child: Column(
+        children: [
+          Icon(icon, color: Colors.white, size: 24),
+          SizedBox(height: 4),
+          Text(
+            label,
+            style: TextStyle(color: Colors.white70, fontSize: 12),
+          ),
+          SizedBox(height: 2),
+          Text(
+            value,
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
       ),
     );
   }
 
   @override
   void dispose() {
-    _nameController.dispose();
+    _cameraController?.dispose();
     flutterTts.stop();
     super.dispose();
   }
+}
+
+class FaceBoxPainter extends CustomPainter {
+  final List<dynamic> box;
+  final Size previewSize;
+
+  FaceBoxPainter(this.box, this.previewSize);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.green
+      ..strokeWidth = 3
+      ..style = PaintingStyle.stroke;
+
+    final scaleX = size.width / previewSize.height;
+    final scaleY = size.height / previewSize.width;
+
+    final rect = Rect.fromLTWH(
+      box[0] * scaleX,
+      box[1] * scaleY,
+      (box[2] - box[0]) * scaleX,
+      (box[3] - box[1]) * scaleY,
+    );
+
+    canvas.drawRect(rect, paint);
+  }
+
+  @override
+  bool shouldRepaint(_) => true;
 }
