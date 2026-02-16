@@ -19,7 +19,7 @@ import 'pages/smart_wallet/wallet_qa_page.dart';
 import 'services/voice_navigation_service.dart';
 
 // API Configuration for Currency/Bills
-const String YOUR_SERVER_IP = "192.168.8.143";
+const String YOUR_SERVER_IP = "192.168.1.100";
 const String API_URL = "http://$YOUR_SERVER_IP:5000";
 
 // Global camera list
