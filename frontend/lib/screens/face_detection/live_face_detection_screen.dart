@@ -20,7 +20,8 @@ class _LiveFaceDetectionScreenState extends State<LiveFaceDetectionScreen> {
   
   List<CameraDescription>? cameras;
   CameraController? _cameraController;
-  bool _isFrontCamera = true;
+  bool _isFrontCamera = false; // Changed to false to start with back camera
+  bool _cameraInitialized = false; // Track initialization status
   
   // Detection states
   bool _isAnalyzing = false;
@@ -84,7 +85,7 @@ class _LiveFaceDetectionScreenState extends State<LiveFaceDetectionScreen> {
 
     _cameraController!.initialize().then((_) {
       if (!mounted) return;
-      setState(() {});
+      setState(() => _cameraInitialized = true);
       _speak("Camera ready. ${_isFrontCamera ? 'Front' : 'Back'} camera active. Tap screen when face is detected.");
     }).catchError((error) {
       print('Camera error: $error');
@@ -93,6 +94,7 @@ class _LiveFaceDetectionScreenState extends State<LiveFaceDetectionScreen> {
   }
 
   void _switchCamera() {
+    if (!_cameraInitialized) return; // Prevent switching before initialization
     setState(() => _isFrontCamera = !_isFrontCamera);
     _startCamera();
   }
@@ -148,6 +150,14 @@ class _LiveFaceDetectionScreenState extends State<LiveFaceDetectionScreen> {
       await file.delete();
 
       print('📊 Analysis result: ${result['person_type']}');
+
+      // Enhance announcement with last seen info for known persons
+      if (result['person_type'] == 'known' && result['data'] != null) {
+        final lastSeen = result['data']['last_seen'];
+        if (lastSeen != null && result['announcement'] != null) {
+          result['announcement'] = '${result['announcement']} ';
+        }
+      }
 
       setState(() {
         _analysisResult = result;
@@ -225,8 +235,8 @@ class _LiveFaceDetectionScreenState extends State<LiveFaceDetectionScreen> {
             child: _buildCameraView(),
           ),
 
-          // Camera Switch Button
-          if (!_showResults)
+          // Camera Switch Button - Only show after initialization
+          if (!_showResults && _cameraInitialized)
             Positioned(
               top: 20,
               right: 20,
@@ -367,7 +377,10 @@ class _LiveFaceDetectionScreenState extends State<LiveFaceDetectionScreen> {
 
     return GestureDetector(
       onTap: _analyzeCurrentFrame,
-      child: CameraPreview(_cameraController!),
+      child: AspectRatio(
+        aspectRatio: _cameraController!.value.aspectRatio,
+        child: CameraPreview(_cameraController!),
+      ),
     );
   }
 

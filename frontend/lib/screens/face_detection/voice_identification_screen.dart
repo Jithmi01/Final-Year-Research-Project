@@ -40,7 +40,13 @@ class _VoiceIdentificationScreenState extends State<VoiceIdentificationScreen>
     await _tts.setLanguage("en-US");
     await _tts.setSpeechRate(0.5);
     await _tts.setVolume(1.0);
-    _speak("Voice identification. Tap the microphone to identify a speaker.");
+    _speak("Voice identification start.");
+    
+    // Auto-start voice identification after TTS message
+    await Future.delayed(const Duration(milliseconds: 500));
+    if (mounted) {
+      _startIdentification();
+    }
   }
   
   Future<void> _speak(String text) async {
@@ -120,7 +126,7 @@ class _VoiceIdentificationScreenState extends State<VoiceIdentificationScreen>
           final name = identResult['name'] ?? 'Unknown';
           final confidence = identResult['confidence'] ?? 0.0;
           
-          await _speak("$name identified with $confidence percent confidence");
+          await _speak("$name identified");
         } else {
           _showMessage(result['error'] ?? 'Identification failed', isError: true);
           await _speak("Identification failed");
@@ -205,20 +211,19 @@ class _VoiceIdentificationScreenState extends State<VoiceIdentificationScreen>
               
               const SizedBox(height: 20),
               
-              if (!_isRecording && !_isIdentifying)
-                ElevatedButton.icon(
-                  onPressed: _startIdentification,
-                  icon: const Icon(Icons.mic, size: 24),
-                  label: Text(
-                    _identificationResult != null ? 'Identify Again' : 'Start Identification',
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.all(20),
-                    backgroundColor: Colors.blue,
-                    foregroundColor: Colors.white,
-                  ),
+              ElevatedButton.icon(
+                onPressed: _startIdentification,
+                icon: const Icon(Icons.mic, size: 24),
+                label: Text(
+                  _identificationResult != null ? 'Identify Again' : 'Start Identification',
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.all(20),
+                  backgroundColor: Colors.blue,
+                  foregroundColor: Colors.white,
+                ),
+              ),
               
               const SizedBox(height: 20),
               
@@ -540,7 +545,7 @@ class _VoiceIdentificationScreenState extends State<VoiceIdentificationScreen>
               ],
             ),
             const SizedBox(height: 12),
-            _buildInstruction('1. Tap "Start Identification"'),
+            _buildInstruction('1. Live Identification starts automatically'),
             _buildInstruction('2. Speak clearly for $_recordDuration seconds'),
             _buildInstruction('3. Wait for AI analysis'),
             _buildInstruction('4. View identified speaker'),
