@@ -18,8 +18,11 @@ import 'pages/smart_wallet/wallet_qa_page.dart';
 // Voice Navigation Service
 import 'services/voice_navigation_service.dart';
 
+// Help Screen Import
+import 'screens/help_screen.dart';
+
 // API Configuration for Currency/Bills
-const String YOUR_SERVER_IP = "192.168.1.100";
+const String YOUR_SERVER_IP = "192.168.43.98";
 const String API_URL = "http://$YOUR_SERVER_IP:5000";
 
 // Global camera list
@@ -265,6 +268,19 @@ class _MasterHomePageState extends State<MasterHomePage> {
       appBar: AppBar(
         title: Text('🤖 Smart Assistant', style: TextStyle(fontWeight: FontWeight.bold)),
         actions: [
+          // Help Button
+          IconButton(
+            icon: Icon(Icons.help_outline, color: Colors.blue),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => HelpScreen(voiceService: _voiceService),
+                ),
+              );
+            },
+            tooltip: 'Help & Guide',
+          ),
           // Voice Navigation Button
           IconButton(
             icon: Icon(
@@ -278,14 +294,14 @@ class _MasterHomePageState extends State<MasterHomePage> {
           ),
         ],
       ),
-      body: SingleChildScrollView(
+      body: Padding(
         padding: EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // App Header
+            // App Header (Compact)
             Container(
-              padding: EdgeInsets.all(24),
+              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [Colors.blue[700]!, Colors.purple[700]!],
@@ -296,33 +312,33 @@ class _MasterHomePageState extends State<MasterHomePage> {
               ),
               child: Column(
                 children: [
-                  Icon(Icons.accessibility_new, size: 64, color: Colors.white),
-                  SizedBox(height: 12),
+                  Icon(Icons.accessibility_new, size: 48, color: Colors.white),
+                  SizedBox(height: 8),
                   Text(
                     'Smart Assistant Hub',
                     style: TextStyle(
-                      fontSize: 28,
+                      fontSize: 22,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
                     ),
                     textAlign: TextAlign.center,
                   ),
-                  SizedBox(height: 8),
+                  SizedBox(height: 4),
                   Text(
                     'All-in-one accessibility solution',
-                    style: TextStyle(color: Colors.white70, fontSize: 16),
+                    style: TextStyle(color: Colors.white70, fontSize: 13),
                     textAlign: TextAlign.center,
                   ),
                 ],
               ),
             ),
             
-            SizedBox(height: 16),
+            SizedBox(height: 12),
             
-            // Voice Navigation Info
+            // Voice Navigation Info (Compact)
             if (_isVoiceEnabled)
               Container(
-                padding: EdgeInsets.all(16),
+                padding: EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: _voiceService.isListening 
                       ? Colors.red[900]?.withOpacity(0.3)
@@ -338,8 +354,9 @@ class _MasterHomePageState extends State<MasterHomePage> {
                     Icon(
                       _voiceService.isListening ? Icons.mic : Icons.mic_none,
                       color: _voiceService.isListening ? Colors.red : Colors.blue,
+                      size: 20,
                     ),
-                    SizedBox(width: 12),
+                    SizedBox(width: 8),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -347,19 +364,18 @@ class _MasterHomePageState extends State<MasterHomePage> {
                           Text(
                             _voiceService.isListening 
                                 ? '🎤 Listening...' 
-                                : 'Voice Navigation Active',
+                                : 'Voice Active',
                             style: TextStyle(
                               color: Colors.white,
-                              fontSize: 16,
+                              fontSize: 14,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-                          SizedBox(height: 4),
                           Text(
                             _voiceService.isListening
-                                ? 'Speak your command now'
-                                : 'Say "currency", "face detection", "wallet", etc.',
-                            style: TextStyle(color: Colors.white70, fontSize: 12),
+                                ? 'Speak now'
+                                : 'Say currency, face, object, wardrobe',
+                            style: TextStyle(color: Colors.white70, fontSize: 11),
                           ),
                         ],
                       ),
@@ -368,85 +384,74 @@ class _MasterHomePageState extends State<MasterHomePage> {
                 ),
               ),
             
-            SizedBox(height: 32),
+            SizedBox(height: 12),
             
-            // Main Feature Sections
-            Text(
-              'Choose Feature',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Colors.white70,
-              ),
-            ),
-            
-            SizedBox(height: 16),
-            
-            // Currency & Bills Section
-            _buildMainFeatureCard(
-              context,
-              icon: Icons.monetization_on,
-              title: 'Currency & Bills',
-              description: 'Scan currency, bills, and manage your wallet',
-              gradient: [Colors.green[700]!, Colors.teal[700]!],
-              features: [
-                '💵 AR Currency Detection',
-                '🧾 Bill Scanner',
-                '💰 Smart Wallet',
-              ],
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const CurrencyBillsHome(),
-                  ),
-                );
-              },
-            ),
-            
-            SizedBox(height: 16),
-            
-            // Face Detection Section
-            _buildMainFeatureCard(
-              context,
-              icon: Icons.face,
-              title: 'Face Detection',
-              description: 'Recognize faces, detect age, gender & attributes',
-              gradient: [Colors.purple[700]!, Colors.pink[700]!],
-              features: [
-                '👤 Face Recognition',
-                '🎭 Age & Gender Detection',
-                '👁️ Facial Attributes',
-              ],
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const HomeScreen(),
-                  ),
-                );
-              },
-            ),
-            
-            SizedBox(height: 24),
-            
-            // Info Section
-            Container(
-              padding: EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.blue[900]?.withOpacity(0.3),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.blue, width: 1),
-              ),
-              child: Row(
+            // Features Grid
+            Expanded(
+              child: GridView.count(
+                crossAxisCount: 2,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                physics: NeverScrollableScrollPhysics(),
                 children: [
-                  Icon(Icons.info_outline, color: Colors.blue),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'Tap cards or use voice to navigate',
-                      style: TextStyle(color: Colors.white70, fontSize: 14),
-                    ),
+                  // Currency & Bills
+                  _buildCompactFeatureCard(
+                    context,
+                    icon: Icons.monetization_on,
+                    title: 'Currency & Bills',
+                    gradient: [Colors.green[700]!, Colors.teal[700]!],
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const CurrencyBillsHome(),
+                        ),
+                      );
+                    },
+                  ),
+                  
+                  // Face Detection
+                  _buildCompactFeatureCard(
+                    context,
+                    icon: Icons.face,
+                    title: 'Face & Voice Detection',
+                    gradient: [Colors.purple[700]!, Colors.pink[700]!],
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const HomeScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  
+                  // Object Detection & Navigation
+                  _buildCompactFeatureCard(
+                    context,
+                    icon: Icons.location_on,
+                    title: 'Object Detection',
+                    gradient: [Colors.orange[700]!, Colors.red[700]!],
+                    onTap: () {
+                      // TODO: Navigate to Object Detection & Navigation screen
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Object Detection - Coming Soon')),
+                      );
+                    },
+                  ),
+                  
+                  // Wardrobe
+                  _buildCompactFeatureCard(
+                    context,
+                    icon: Icons.checkroom,
+                    title: 'Wardrobe',
+                    gradient: [Colors.indigo[700]!, Colors.blue[700]!],
+                    onTap: () {
+                      // TODO: Navigate to Wardrobe screen
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Wardrobe - Coming Soon')),
+                      );
+                    },
                   ),
                 ],
               ),
@@ -471,13 +476,11 @@ class _MasterHomePageState extends State<MasterHomePage> {
     );
   }
 
-  Widget _buildMainFeatureCard(
+  Widget _buildCompactFeatureCard(
     BuildContext context, {
     required IconData icon,
     required String title,
-    required String description,
     required List<Color> gradient,
-    required List<String> features,
     required VoidCallback onTap,
   }) {
     return GestureDetector(
@@ -495,66 +498,23 @@ class _MasterHomePageState extends State<MasterHomePage> {
             borderRadius: BorderRadius.circular(16),
           ),
           child: Padding(
-            padding: EdgeInsets.all(20),
+            padding: EdgeInsets.all(16),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Icon(icon, size: 40, color: Colors.white),
-                    ),
-                    SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            title,
-                            style: TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                          SizedBox(height: 4),
-                          Text(
-                            description,
-                            style: TextStyle(
-                              color: Colors.white70,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Icon(Icons.arrow_forward_ios, color: Colors.white70, size: 24),
-                  ],
-                ),
-                
-                SizedBox(height: 16),
-                Divider(color: Colors.white30),
+                Icon(icon, size: 40, color: Colors.white),
                 SizedBox(height: 8),
-                
-                // Features List
-                ...features.map((feature) => Padding(
-                  padding: EdgeInsets.symmetric(vertical: 4),
-                  child: Row(
-                    children: [
-                      Icon(Icons.check_circle, color: Colors.white70, size: 20),
-                      SizedBox(width: 8),
-                      Text(
-                        feature,
-                        style: TextStyle(color: Colors.white, fontSize: 14),
-                      ),
-                    ],
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
                   ),
-                )).toList(),
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ],
             ),
           ),
