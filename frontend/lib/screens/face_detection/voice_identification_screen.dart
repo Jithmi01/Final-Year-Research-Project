@@ -76,7 +76,7 @@ class _VoiceIdentificationScreenState extends State<VoiceIdentificationScreen>
       _identificationResult = null;
     });
     
-    await _speak("Recording. Please speak now.");
+    await _speak("Analysing start");
     await Future.delayed(Duration(milliseconds: 500));
     
     final started = await _audioService.startRecording();

@@ -21,6 +21,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final FlutterTts flutterTts = FlutterTts();
   bool isServerConnected = false;
   bool isCheckingConnection = true;
+  bool _showIndividualFeatures = false;
 
   @override
   void initState() {
@@ -236,6 +237,98 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _showIndividualFeaturesModal() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Color(0xFF2C2C2C),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _buildSectionHeader('👤', 'Individual Features'),
+                  IconButton(
+                    icon: Icon(Icons.close, color: Colors.white),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            Divider(color: Colors.grey[700]),
+            SingleChildScrollView(
+              child: Column(
+                children: [
+                  _buildFeatureCard(
+                    title: 'Age & Gender Detector',
+                    description: 'Detect age and gender from faces',
+                    icon: Icons.face,
+                    iconColor: Colors.white,
+                    backgroundColor: Color(0xFF8B4513),
+                    onTap: () {
+                      Navigator.pop(context);
+                      if (isServerConnected) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const AgeGenderScreen()),
+                        );
+                      } else {
+                        _showServerError();
+                      }
+                    },
+                  ),
+                  _buildFeatureCard(
+                    title: 'Face Recognition',
+                    description: 'Recognize and identify known faces',
+                    icon: Icons.person_search,
+                    iconColor: Colors.white,
+                    backgroundColor: Color(0xFF2E7D32),
+                    onTap: () {
+                      Navigator.pop(context);
+                      if (isServerConnected) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const FaceRecognitionScreen()),
+                        );
+                      } else {
+                        _showServerError();
+                      }
+                    },
+                  ),
+                  _buildFeatureCard(
+                    title: 'Facial Attributes',
+                    description: 'Detect facial features and attributes',
+                    icon: Icons.visibility,
+                    iconColor: Colors.white,
+                    backgroundColor: Color(0xFF1976D2),
+                    onTap: () {
+                      Navigator.pop(context);
+                      if (isServerConnected) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const AttributesScreen()),
+                        );
+                      } else {
+                        _showServerError();
+                      }
+                    },
+                  ),
+                  SizedBox(height: 16),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -358,143 +451,91 @@ class _HomeScreenState extends State<HomeScreen> {
       body: SafeArea(
         child: isCheckingConnection
             ? const Center(child: CircularProgressIndicator())
-            : SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (!isServerConnected)
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        margin: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.red[900]?.withOpacity(0.3),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.red),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.warning, color: Colors.red),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                'Backend server not connected. Tap to retry.',
-                                style: TextStyle(color: Colors.red[300]),
+            : Stack(
+                children: [
+                  Column(
+                    children: [
+                      if (!isServerConnected)
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          margin: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.red[900]?.withOpacity(0.3),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.red),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.warning, color: Colors.red),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Backend server not connected. Tap to retry.',
+                                  style: TextStyle(color: Colors.red[300]),
+                                ),
                               ),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.refresh, color: Colors.red),
-                              onPressed: _checkServerConnection,
-                            ),
-                          ],
+                              IconButton(
+                                icon: const Icon(Icons.refresh, color: Colors.red),
+                                onPressed: _checkServerConnection,
+                              ),
+                            ],
+                          ),
                         ),
+                      _buildHeaderCard(),
+                      _buildSectionHeader('🎯', 'Main Features'),
+                      _buildFeatureCard(
+                        title: 'Live Face Detection',
+                        description: 'Real-time face analysis for blind users',
+                        icon: Icons.face_retouching_natural,
+                        iconColor: Colors.white,
+                        backgroundColor: Color(0xFF6A1B9A),
+                        badge: 'NEW',
+                        onTap: () {
+                          if (isServerConnected) {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const LiveFaceDetectionScreen(),
+                              ),
+                            );
+                          } else {
+                            _showServerError();
+                          }
+                        },
                       ),
-                    
-                    _buildHeaderCard(),
-                    
-                    _buildSectionHeader('🎯', 'Live Detection'),
-                    
-                    _buildFeatureCard(
-                      title: 'Live Face Detection',
-                      description: 'Real-time face analysis for blind users',
-                      icon: Icons.face_retouching_natural,
-                      iconColor: Colors.white,
-                      backgroundColor: Color(0xFF6A1B9A),
-                      badge: 'NEW',
-                      onTap: () {
-                        if (isServerConnected) {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const LiveFaceDetectionScreen(),
-                            ),
-                          );
-                        } else {
-                          _showServerError();
-                        }
-                      },
-                    ),
-                    
-                    // ⭐ NEW: Voice Identification
-                    _buildFeatureCard(
-                      title: 'Voice Identification',
-                      description: 'Identify people by their voice',
-                      icon: Icons.mic,
-                      iconColor: Colors.white,
-                      backgroundColor: Color(0xFFD32F2F),
-                      badge: 'NEW',
-                      onTap: () {
-                        if (isServerConnected) {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const VoiceIdentificationScreen(),
-                            ),
-                          );
-                        } else {
-                          _showServerError();
-                        }
-                      },
-                    ),
-                    
-                    _buildSectionHeader('👤', 'Individual Features'),
-                    
-                    _buildFeatureCard(
-                      title: 'Age & Gender Detector',
-                      description: 'Detect age and gender from faces',
-                      icon: Icons.face,
-                      iconColor: Colors.white,
-                      backgroundColor: Color(0xFF8B4513),
-                      onTap: () {
-                        if (isServerConnected) {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => const AgeGenderScreen()),
-                          );
-                        } else {
-                          _showServerError();
-                        }
-                      },
-                    ),
-                    
-                    _buildFeatureCard(
-                      title: 'Face Recognition',
-                      description: 'Recognize and identify known faces',
-                      icon: Icons.person_search,
-                      iconColor: Colors.white,
+                      _buildFeatureCard(
+                        title: 'Voice Identification',
+                        description: 'Identify people by their voice',
+                        icon: Icons.mic,
+                        iconColor: Colors.white,
+                        backgroundColor: Color(0xFFD32F2F),
+                        badge: 'NEW',
+                        onTap: () {
+                          if (isServerConnected) {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const VoiceIdentificationScreen(),
+                              ),
+                            );
+                          } else {
+                            _showServerError();
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                  Positioned(
+                    bottom: 24,
+                    right: 24,
+                    child: FloatingActionButton(
                       backgroundColor: Color(0xFF2E7D32),
-                      onTap: () {
-                        if (isServerConnected) {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => const FaceRecognitionScreen()),
-                          );
-                        } else {
-                          _showServerError();
-                        }
-                      },
+                      onPressed: _showIndividualFeaturesModal,
+                      tooltip: 'More Features',
+                      child: Icon(Icons.more_horiz, color: Colors.white),
                     ),
-                    
-                    _buildFeatureCard(
-                      title: 'Facial Attributes',
-                      description: 'Detect facial features and attributes',
-                      icon: Icons.visibility,
-                      iconColor: Colors.white,
-                      backgroundColor: Color(0xFF1976D2),
-                      onTap: () {
-                        if (isServerConnected) {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => const AttributesScreen()),
-                          );
-                        } else {
-                          _showServerError();
-                        }
-                      },
-                    ),
-                    
-                    const SizedBox(height: 24),
-                  ],
-                ),
+                  ),
+                ],
               ),
       ),
     );
