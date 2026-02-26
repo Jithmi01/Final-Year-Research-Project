@@ -6,8 +6,8 @@ import 'dart:async';
 
 class ApiService {
   // IMPORTANT: Update this IP address to match your integrated project's IP
-  static const String baseUrl = 'http://192.168.1.100:5000/api';
-  static const String serverUrl = 'http://192.168.1.100:5000';
+  static const String baseUrl = 'http://192.168.43.98:5000/api';
+  static const String serverUrl = 'http://192.168.43.98:5000';
   
   // Timeout settings
   static const Duration timeout = Duration(seconds: 30);

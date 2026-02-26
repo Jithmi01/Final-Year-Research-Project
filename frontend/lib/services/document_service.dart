@@ -7,7 +7,7 @@ import 'package:http/http.dart' as http;
 import '../models/document_model.dart';
 
 class DocumentService {
-  static const String baseUrl = 'http://192.168.8.143:5000'; // Change to your backend IP
+  static const String baseUrl = 'http://192.168.43.98:5000'; // Change to your backend IP
   
   // ========================================================================
   // CONTINUOUS READING
