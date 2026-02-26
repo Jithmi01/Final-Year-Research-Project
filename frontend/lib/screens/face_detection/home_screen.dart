@@ -7,7 +7,7 @@ import 'face_recognition_screen.dart';
 import 'people_dashboard_screen.dart';
 import 'person_registration_screen.dart';
 import 'attributes_screen.dart';
-import 'voice_identification_screen.dart';  // ⭐ NEW
+import 'voice_identification_screen.dart';  
 import '../../services/api_service.dart';
 
 class HomeScreen extends StatefulWidget {
