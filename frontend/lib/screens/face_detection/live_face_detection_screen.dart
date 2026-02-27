@@ -27,6 +27,7 @@ class _LiveFaceDetectionScreenState extends State<LiveFaceDetectionScreen> {
   bool _isAnalyzing = false;
   bool _faceDetectedInFrame = false;
   Timer? _detectionTimer;
+  int _consecutiveFaceDetections = 0; // Track consecutive detections
   
   // Results
   Map<String, dynamic>? _analysisResult;
@@ -109,13 +110,20 @@ class _LiveFaceDetectionScreenState extends State<LiveFaceDetectionScreen> {
 
       final result = await ApiService.quickFaceDetect(file);
       
+      // Use direct face_detected value from API
       bool faceDetected = result['face_detected'] ?? false;
       
-      // Give voice feedback when face detection changes
-      if (faceDetected && !_faceDetectedInFrame) {
+      if (faceDetected) {
+        _consecutiveFaceDetections++;
+      } else {
+        _consecutiveFaceDetections = 0;
+      }
+      
+      // Require 2 consecutive detections to announce (prevents false positives)
+      if (_consecutiveFaceDetections >= 2 && !_faceDetectedInFrame) {
         _speak("Face detected! Tap screen to analyze.");
         setState(() => _faceDetectedInFrame = true);
-      } else if (!faceDetected && _faceDetectedInFrame) {
+      } else if (_consecutiveFaceDetections == 0 && _faceDetectedInFrame) {
         setState(() => _faceDetectedInFrame = false);
       }
       
@@ -228,51 +236,63 @@ class _LiveFaceDetectionScreenState extends State<LiveFaceDetectionScreen> {
             ),
         ],
       ),
-      body: Stack(
-        children: [
-          // Camera Preview
-          Positioned.fill(
-            child: _buildCameraView(),
-          ),
-
-          // Camera Switch Button - Only show after initialization
-          if (!_showResults && _cameraInitialized)
-            Positioned(
-              top: 20,
-              right: 20,
-              child: _buildCameraSwitchButton(),
-            ),
-
-          // Face detected indicator overlay
-          if (_faceDetectedInFrame && !_isAnalyzing && !_showResults)
+      body: GestureDetector(
+        onTap: !_isAnalyzing && !_showResults ? _analyzeCurrentFrame : null,
+        child: Stack(
+          children: [
+            // Camera Preview
             Positioned.fill(
-              child: CustomPaint(
-                painter: FaceDetectionOverlayPainter(),
-              ),
+              child: _buildCameraView(),
             ),
 
-          // Tap instruction
-          if (!_isAnalyzing && !_showResults)
-            Positioned(
-              bottom: 40,
-              left: 0,
-              right: 0,
-              child: Center(
+            // Camera Switch Button - Only show after initialization
+            if (!_showResults && _cameraInitialized)
+              Positioned(
+                top: 20,
+                right: 20,
                 child: GestureDetector(
-                  onTap: _analyzeCurrentFrame,
+                  onTap: _switchCamera,
+                  child: Container(
+                    padding: EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.black54,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2),
+                    ),
+                    child: Icon(
+                      Icons.flip_camera_ios,
+                      color: Colors.white,
+                      size: 32,
+                    ),
+                  ),
+                ),
+              ),
+
+            // Face detected indicator overlay
+            if (_faceDetectedInFrame && !_isAnalyzing && !_showResults)
+              Positioned.fill(
+                child: CustomPaint(
+                  painter: FaceDetectionOverlayPainter(),
+                ),
+              ),
+
+            // Voice instruction instead of button (no visual button needed for blind users)
+            if (!_isAnalyzing && !_showResults && _faceDetectedInFrame)
+              Positioned(
+                bottom: 40,
+                left: 0,
+                right: 0,
+                child: Center(
                   child: Container(
                     padding: EdgeInsets.symmetric(horizontal: 32, vertical: 16),
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
-                        colors: _faceDetectedInFrame 
-                            ? [Colors.green[700]!, Colors.green[500]!]
-                            : [Colors.blue[700]!, Colors.blue[500]!],
+                        colors: [Colors.green[700]!, Colors.green[500]!],
                       ),
                       borderRadius: BorderRadius.circular(30),
                       boxShadow: [
                         BoxShadow(
-                          color: (_faceDetectedInFrame ? Colors.green : Colors.blue)
-                              .withOpacity(0.5),
+                          color: Colors.green.withOpacity(0.5),
                           blurRadius: 20,
                           spreadRadius: 5,
                         ),
@@ -282,16 +302,16 @@ class _LiveFaceDetectionScreenState extends State<LiveFaceDetectionScreen> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
-                          _faceDetectedInFrame ? Icons.touch_app : Icons.camera_alt,
+                          Icons.touch_app,
                           color: Colors.white,
                           size: 28,
                         ),
                         SizedBox(width: 12),
                         Text(
-                          _faceDetectedInFrame ? 'TAP TO ANALYZE' : 'Waiting for face...',
+                          'FACE DETECTED - TAP TO ANALYZE',
                           style: TextStyle(
                             color: Colors.white,
-                            fontSize: 18,
+                            fontSize: 16,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -300,57 +320,57 @@ class _LiveFaceDetectionScreenState extends State<LiveFaceDetectionScreen> {
                   ),
                 ),
               ),
-            ),
 
-          // Analyzing overlay
-          if (_isAnalyzing)
-            Positioned.fill(
-              child: Container(
-                color: Colors.black87,
-                child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      SizedBox(
-                        width: 80,
-                        height: 80,
-                        child: CircularProgressIndicator(
-                          color: Colors.blue,
-                          strokeWidth: 6,
+            // Analyzing overlay
+            if (_isAnalyzing)
+              Positioned.fill(
+                child: Container(
+                  color: Colors.black87,
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          width: 80,
+                          height: 80,
+                          child: CircularProgressIndicator(
+                            color: Colors.blue,
+                            strokeWidth: 6,
+                          ),
                         ),
-                      ),
-                      SizedBox(height: 24),
-                      Text(
-                        'Analyzing Face...',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
+                        SizedBox(height: 24),
+                        Text(
+                          'Analyzing Face...',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
-                      ),
-                      SizedBox(height: 12),
-                      Text(
-                        'Please wait',
-                        style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 16,
+                        SizedBox(height: 12),
+                        Text(
+                          'Please wait',
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 16,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
 
-          // Results overlay
-          if (_showResults && _analysisResult != null)
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
-              child: _buildResultsOverlay(),
-            ),
-        ],
+            // Results overlay
+            if (_showResults && _analysisResult != null)
+              Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: _buildResultsOverlay(),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -375,31 +395,9 @@ class _LiveFaceDetectionScreenState extends State<LiveFaceDetectionScreen> {
       );
     }
 
-    return GestureDetector(
-      onTap: _analyzeCurrentFrame,
-      child: AspectRatio(
-        aspectRatio: _cameraController!.value.aspectRatio,
-        child: CameraPreview(_cameraController!),
-      ),
-    );
-  }
-
-  Widget _buildCameraSwitchButton() {
-    return GestureDetector(
-      onTap: _switchCamera,
-      child: Container(
-        padding: EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.black54,
-          shape: BoxShape.circle,
-          border: Border.all(color: Colors.white, width: 2),
-        ),
-        child: Icon(
-          Icons.flip_camera_ios,
-          color: Colors.white,
-          size: 32,
-        ),
-      ),
+    return AspectRatio(
+      aspectRatio: _cameraController!.value.aspectRatio,
+      child: CameraPreview(_cameraController!),
     );
   }
 
