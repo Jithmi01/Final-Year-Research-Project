@@ -173,10 +173,22 @@ class _LiveFaceDetectionScreenState extends State<LiveFaceDetectionScreen> {
         _isAnalyzing = false;
       });
 
-      // Speak the announcement
+      // Speak the announcement and auto-clear results when speech completes
       if (result['announcement'] != null) {
         await Future.delayed(Duration(milliseconds: 300));
-        _speak(result['announcement']);
+        await flutterTts.speak(result['announcement']);
+        
+        // Wait for speech to complete, then auto-clear results
+        await Future.delayed(Duration(milliseconds: 500));
+        
+        // Calculate approximate speech duration based on text length
+        final speechDuration = _calculateSpeechDuration(result['announcement']);
+        await Future.delayed(speechDuration);
+        
+        // Auto-clear results after announcement completes
+        if (mounted) {
+          _clearResultsAutomatically();
+        }
       }
 
     } catch (e) {
@@ -192,6 +204,25 @@ class _LiveFaceDetectionScreenState extends State<LiveFaceDetectionScreen> {
         ),
       );
     }
+  }
+
+  /// Calculate approximate speech duration based on announcement text
+  Duration _calculateSpeechDuration(String text) {
+    // Approximate: 150 words per minute = 2.5 words per second
+    // Average word length in English is ~5 characters
+    final wordCount = text.split(' ').length;
+    final durationMs = (wordCount / 2.5 * 1000).toInt();
+    return Duration(milliseconds: durationMs + 600); // +500ms buffer
+  }
+
+  /// Auto-clear results without voice feedback
+  void _clearResultsAutomatically() {
+    setState(() {
+      _showResults = false;
+      _analysisResult = null;
+      _consecutiveFaceDetections = 0; // Reset detection counter
+      _faceDetectedInFrame = false;
+    });
   }
 
   void _clearResults() {

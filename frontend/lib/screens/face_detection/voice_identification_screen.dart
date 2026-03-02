@@ -40,7 +40,7 @@ class _VoiceIdentificationScreenState extends State<VoiceIdentificationScreen>
     await _tts.setLanguage("en-US");
     await _tts.setSpeechRate(0.5);
     await _tts.setVolume(1.0);
-    _speak("Voice identification start.");
+    _speak("identification start.");
 
     // Auto-start voice identification after TTS message
     await Future.delayed(const Duration(milliseconds: 500));
@@ -87,7 +87,7 @@ class _VoiceIdentificationScreenState extends State<VoiceIdentificationScreen>
   Future<void> _announceLastSeen(String name, String? lastSeenIso) async {
     if (lastSeenIso == null || lastSeenIso.isEmpty) {
       // First-time meeting – no previous record
-      await _speak("$name identified. First time meeting.");
+      await _speak("$name identified.");
     } else {
       final formatted = _formatLastSeen(lastSeenIso);
       await _speak("$name identified. Met on $formatted.");
@@ -158,10 +158,16 @@ class _VoiceIdentificationScreenState extends State<VoiceIdentificationScreen>
           setState(() => _identificationResult = identResult);
 
           final name      = identResult['name'] ?? 'Unknown';
-          final lastSeen  = identResult['last_seen'] as String?;  // ── NEW
+          final lastSeen  = identResult['last_seen'] as String?;
 
-          // ── NEW: use the enhanced announcement instead of plain speak ──
           await _announceLastSeen(name, lastSeen);
+
+          // ── NEW: Auto-restart detection after 5 seconds ──
+          await Future.delayed(const Duration(seconds: 10));
+          if (mounted) {
+            _startIdentification();
+          }
+          // ───────────────────────────────────────────────
         } else {
           _showMessage(result['error'] ?? 'Identification failed', isError: true);
           await _speak("Identification failed");
@@ -535,41 +541,41 @@ class _VoiceIdentificationScreenState extends State<VoiceIdentificationScreen>
                   color: Colors.grey[850],
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Column(
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          'Confidence',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                            color: Colors.white,
-                          ),
-                        ),
-                        Text(
-                          '${confidence.toStringAsFixed(1)}%',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 20,
-                            color: confidenceColor,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: LinearProgressIndicator(
-                        value: confidence / 100,
-                        minHeight: 12,
-                        backgroundColor: Colors.grey[700],
-                        valueColor: AlwaysStoppedAnimation<Color>(confidenceColor),
-                      ),
-                    ),
-                  ],
-                ),
+                // child: Column(
+                //   children: [
+                //     Row(
+                //       mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                //       children: [
+                //         const Text(
+                //           'Confidence',
+                //           style: TextStyle(
+                //             fontWeight: FontWeight.bold,
+                //             fontSize: 16,
+                //             color: Colors.white,
+                //           ),
+                //         ),
+                //         Text(
+                //           '${confidence.toStringAsFixed(1)}%',
+                //           style: TextStyle(
+                //             fontWeight: FontWeight.bold,
+                //             fontSize: 20,
+                //             color: confidenceColor,
+                //           ),
+                //         ),
+                //       ],
+                //     ),
+                //     const SizedBox(height: 12),
+                //     ClipRRect(
+                //       borderRadius: BorderRadius.circular(8),
+                //       child: LinearProgressIndicator(
+                //         value: confidence / 100,
+                //         minHeight: 12,
+                //         backgroundColor: Colors.grey[700],
+                //         valueColor: AlwaysStoppedAnimation<Color>(confidenceColor),
+                //       ),
+                //     ),
+                //   ],
+                // ),
               ),
           ],
         ),
