@@ -8,7 +8,7 @@ class ApiService {
   // IMPORTANT: Update this IP address to match your integrated project's IP
   static const String baseUrl = 'http://192.168.43.98:5000/api';
   static const String serverUrl = 'http://192.168.43.98:5000';
-  
+
   // Timeout settings
   static const Duration timeout = Duration(seconds: 30);
   static const Duration longTimeout = Duration(seconds: 60);
@@ -17,26 +17,26 @@ class ApiService {
   // =====================================================================
   // FACE DETECTION ENDPOINTS (EXISTING - UNCHANGED)
   // =====================================================================
-  
+
   /// Quick face detection for voice feedback
   static Future<Map<String, dynamic>> quickFaceDetect(File imageFile) async {
     try {
       if (!await imageFile.exists()) {
         throw Exception('Image file does not exist');
       }
-      
+
       var request = http.MultipartRequest(
         'POST',
         Uri.parse('$baseUrl/integrated-face/quick-detect'),
       );
-      
+
       request.files.add(
         await http.MultipartFile.fromPath('image', imageFile.path),
       );
-      
+
       var streamedResponse = await request.send().timeout(timeout);
       var response = await http.Response.fromStream(streamedResponse);
-      
+
       if (response.statusCode == 200) {
         return json.decode(response.body);
       } else {
@@ -47,30 +47,30 @@ class ApiService {
       throw Exception('Network error: $e');
     }
   }
-  
+
   /// Complete face analysis when user taps screen
   static Future<Map<String, dynamic>> analyzeFace(File imageFile) async {
     try {
       if (!await imageFile.exists()) {
         throw Exception('Image file does not exist');
       }
-      
+
       var request = http.MultipartRequest(
         'POST',
         Uri.parse('$baseUrl/integrated-face/analyze'),
       );
-      
+
       request.files.add(
         await http.MultipartFile.fromPath('image', imageFile.path),
       );
-      
+
       print('📤 Sending face analysis request...');
-      
+
       var streamedResponse = await request.send().timeout(longTimeout);
       var response = await http.Response.fromStream(streamedResponse);
-      
+
       print('📥 Response status: ${response.statusCode}');
-      
+
       if (response.statusCode == 200) {
         return json.decode(response.body);
       } else {
@@ -89,19 +89,19 @@ class ApiService {
       if (!await imageFile.exists()) {
         throw Exception('Image file does not exist');
       }
-      
+
       var request = http.MultipartRequest(
         'POST',
         Uri.parse('$baseUrl/age-gender/detect'),
       );
-      
+
       request.files.add(
         await http.MultipartFile.fromPath('image', imageFile.path),
       );
-      
+
       var streamedResponse = await request.send().timeout(timeout);
       var response = await http.Response.fromStream(streamedResponse);
-      
+
       if (response.statusCode == 200) {
         return json.decode(response.body);
       } else {
@@ -112,7 +112,7 @@ class ApiService {
       throw Exception('Network error: $e');
     }
   }
-   
+
   // Face Recognition - Register Person (IMAGES ONLY)
   static Future<Map<String, dynamic>> registerPerson(
     String name,
@@ -123,20 +123,21 @@ class ApiService {
         'POST',
         Uri.parse('$baseUrl/face-recognition/register'),
       );
-      
+
       request.fields['name'] = name;
-      
+
       for (int i = 0; i < images.length; i++) {
         if (await images[i].exists()) {
           request.files.add(
-            await http.MultipartFile.fromPath('image${i + 1}', images[i].path),
+            await http.MultipartFile.fromPath(
+                'image${i + 1}', images[i].path),
           );
         }
       }
-      
+
       var streamedResponse = await request.send().timeout(timeout);
       var response = await http.Response.fromStream(streamedResponse);
-      
+
       if (response.statusCode == 200) {
         return json.decode(response.body);
       } else {
@@ -151,26 +152,26 @@ class ApiService {
       throw Exception('Network error: $e');
     }
   }
-  
+
   // Face Recognition - Recognize Person
   static Future<Map<String, dynamic>> recognizePerson(File imageFile) async {
     try {
       if (!await imageFile.exists()) {
         throw Exception('Image file does not exist');
       }
-      
+
       var request = http.MultipartRequest(
         'POST',
         Uri.parse('$baseUrl/face-recognition/recognize'),
       );
-      
+
       request.files.add(
         await http.MultipartFile.fromPath('image', imageFile.path),
       );
-      
+
       var streamedResponse = await request.send().timeout(timeout);
       var response = await http.Response.fromStream(streamedResponse);
-      
+
       if (response.statusCode == 200) {
         return json.decode(response.body);
       } else {
@@ -185,14 +186,14 @@ class ApiService {
       throw Exception('Network error: $e');
     }
   }
-  
+
   // Face Recognition - Get Registered People (FACES ONLY)
   static Future<Map<String, dynamic>> getRegisteredPeople() async {
     try {
       var response = await http.get(
         Uri.parse('$baseUrl/face-recognition/people'),
       ).timeout(timeout);
-      
+
       if (response.statusCode == 200) {
         return json.decode(response.body);
       } else {
@@ -207,7 +208,7 @@ class ApiService {
       throw Exception('Network error: $e');
     }
   }
-  
+
   // Face Recognition - Delete Person (FACE)
   static Future<void> deletePerson(String personId) async {
     try {
@@ -228,7 +229,8 @@ class ApiService {
   }
 
   // Face Recognition - Update Person Name
-  static Future<void> updatePersonName(String personId, String newName) async {
+  static Future<void> updatePersonName(
+      String personId, String newName) async {
     try {
       final response = await http.put(
         Uri.parse('$baseUrl/face-recognition/person/$personId'),
@@ -254,19 +256,19 @@ class ApiService {
       if (!await imageFile.exists()) {
         throw Exception('Image file does not exist');
       }
-      
+
       var request = http.MultipartRequest(
         'POST',
         Uri.parse('$baseUrl/attributes/detect'),
       );
-      
+
       request.files.add(
         await http.MultipartFile.fromPath('image', imageFile.path),
       );
-      
+
       var streamedResponse = await request.send().timeout(timeout);
       var response = await http.Response.fromStream(streamedResponse);
-      
+
       if (response.statusCode == 200) {
         return json.decode(response.body);
       } else {
@@ -281,11 +283,11 @@ class ApiService {
       throw Exception('Network error: $e');
     }
   }
-  
+
   // =====================================================================
-  // ⭐ VOICE RECOGNITION ENDPOINTS (NEW)
+  // VOICE RECOGNITION ENDPOINTS
   // =====================================================================
-  
+
   /// Register new user with voice samples
   static Future<Map<String, dynamic>> registerVoiceUser({
     required String name,
@@ -294,24 +296,24 @@ class ApiService {
     try {
       print('📤 Registering voice user: $name');
       print('📊 Audio files: ${audioFilePaths.length}');
-      
+
       final uri = Uri.parse('$baseUrl/voice/register');
       final request = http.MultipartRequest('POST', uri);
-      
+
       // Add user name
       request.fields['name'] = name;
-      
+
       // Add audio files
       for (int i = 0; i < audioFilePaths.length; i++) {
         print('📁 Adding file ${i + 1}: ${audioFilePaths[i]}');
-        
+
         final file = File(audioFilePaths[i]);
-        
+
         if (!await file.exists()) {
           print('❌ File not found: ${audioFilePaths[i]}');
           throw Exception('Audio file not found: ${audioFilePaths[i]}');
         }
-        
+
         final multipartFile = await http.MultipartFile.fromPath(
           'audio_files',
           file.path,
@@ -319,14 +321,14 @@ class ApiService {
         );
         request.files.add(multipartFile);
       }
-      
+
       print('⏳ Sending voice registration request...');
-      
+
       final streamedResponse = await request.send().timeout(voiceTimeout);
       final response = await http.Response.fromStream(streamedResponse);
-      
+
       print('📥 Response status: ${response.statusCode}');
-      
+
       if (response.statusCode == 201) {
         final data = json.decode(response.body);
         print('✅ Voice registration successful!');
@@ -344,43 +346,52 @@ class ApiService {
       throw Exception('Voice registration error: $e');
     }
   }
-  
-  /// Identify speaker from voice sample
+
+  /// Identify speaker from voice sample.
+  ///
+  /// [targetLanguageCode] is the user's preferred translation language
+  /// (e.g. 'si' for Sinhala, 'en' for English, 'ta' for Tamil).
+  /// Defaults to 'si' so existing callers that omit it are unaffected.
   static Future<Map<String, dynamic>> identifyVoiceSpeaker({
     required String audioFilePath,
     double? threshold,
+    String targetLanguageCode = 'si', // NEW — user's chosen language
   }) async {
     try {
       print('📤 Identifying speaker...');
       print('📁 Audio file: $audioFilePath');
-      
+      print('🌐 Target language: $targetLanguageCode');
+
       final uri = Uri.parse('$baseUrl/voice/identify');
       final request = http.MultipartRequest('POST', uri);
-      
+
       final file = File(audioFilePath);
-      
+
       if (!await file.exists()) {
         throw Exception('Audio file not found');
       }
-      
+
       final multipartFile = await http.MultipartFile.fromPath(
         'audio_file',
         file.path,
         filename: 'identify.wav',
       );
       request.files.add(multipartFile);
-      
+
       if (threshold != null) {
         request.fields['threshold'] = threshold.toString();
       }
-      
+
+      // NEW: send target language to backend for translation
+      request.fields['target_language'] = targetLanguageCode;
+
       print('⏳ Sending identification request...');
-      
+
       final streamedResponse = await request.send().timeout(longTimeout);
       final response = await http.Response.fromStream(streamedResponse);
-      
+
       print('📥 Response status: ${response.statusCode}');
-      
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         print('✅ Identification completed');
@@ -398,17 +409,17 @@ class ApiService {
       throw Exception('Identification error: $e');
     }
   }
-  
+
   /// Get all registered voice users
   static Future<Map<String, dynamic>> getRegisteredVoiceUsers() async {
     try {
       print('📤 Fetching voice users...');
-      
+
       final uri = Uri.parse('$baseUrl/voice/users');
       final response = await http.get(uri).timeout(timeout);
-      
+
       print('📥 Response status: ${response.statusCode}');
-      
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         print('✅ Found ${data['total']} voice users');
@@ -422,13 +433,14 @@ class ApiService {
       throw Exception('Error fetching voice users: $e');
     }
   }
-  
+
   /// Delete voice user by name
   static Future<void> deleteVoiceUser(String name) async {
     try {
-      final uri = Uri.parse('$baseUrl/voice/users/${Uri.encodeComponent(name)}');
+      final uri = Uri.parse(
+          '$baseUrl/voice/users/${Uri.encodeComponent(name)}');
       final response = await http.delete(uri).timeout(timeout);
-      
+
       if (response.statusCode != 200) {
         throw Exception('Failed to delete voice user');
       }
@@ -436,7 +448,7 @@ class ApiService {
       throw Exception('Error deleting voice user: $e');
     }
   }
-  
+
   /// Verify speaker identity
   static Future<Map<String, dynamic>> verifyVoiceSpeaker({
     required String audioFilePath,
@@ -446,12 +458,12 @@ class ApiService {
     try {
       final uri = Uri.parse('$baseUrl/voice/verify');
       final request = http.MultipartRequest('POST', uri);
-      
+
       request.fields['claimed_name'] = claimedName;
       if (threshold != null) {
         request.fields['threshold'] = threshold.toString();
       }
-      
+
       final file = File(audioFilePath);
       final multipartFile = await http.MultipartFile.fromPath(
         'audio_file',
@@ -459,10 +471,10 @@ class ApiService {
         filename: 'verify.wav',
       );
       request.files.add(multipartFile);
-      
+
       final streamedResponse = await request.send().timeout(longTimeout);
       final response = await http.Response.fromStream(streamedResponse);
-      
+
       if (response.statusCode == 200) {
         return json.decode(response.body);
       } else {
@@ -473,39 +485,79 @@ class ApiService {
       throw Exception('Verification error: $e');
     }
   }
-  
+
+
+  /// Transcribe a short voice command audio clip.
+  /// Used to detect keywords like "translate" from user voice commands.
+  /// Returns { 'transcribed_text': '...' }
+  static Future<Map<String, dynamic>> transcribeCommandAudio({
+    required String audioFilePath,
+  }) async {
+    try {
+      print('📤 Transcribing command audio...');
+
+      final uri = Uri.parse('\$baseUrl/voice/transcribe-command');
+      final request = http.MultipartRequest('POST', uri);
+
+      final file = File(audioFilePath);
+      if (!await file.exists()) throw Exception('Command audio file not found');
+
+      final multipartFile = await http.MultipartFile.fromPath(
+        'audio_file', file.path, filename: 'command.wav',
+      );
+      request.files.add(multipartFile);
+
+      final streamedResponse = await request.send().timeout(timeout);
+      final response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      } else {
+        // If endpoint not available, return empty so caller handles gracefully
+        return {'transcribed_text': ''};
+      }
+    } on SocketException {
+      return {'transcribed_text': ''};
+    } on TimeoutException {
+      return {'transcribed_text': ''};
+    } catch (e) {
+      print('Command transcription error: \$e');
+      return {'transcribed_text': ''};
+    }
+  }
+
   // =====================================================================
   // HEALTH CHECK
   // =====================================================================
-  
+
   // Health Check
   static Future<bool> checkHealth() async {
     try {
       var response = await http.get(
         Uri.parse('$serverUrl/health'),
       ).timeout(const Duration(seconds: 5));
-      
+
       if (response.statusCode == 200) {
         var data = json.decode(response.body);
         return data['status'] == 'healthy';
       }
-      
+
       return false;
     } catch (e) {
       return false;
     }
   }
-  
+
   // Test connection with detailed error messages
   static Future<Map<String, dynamic>> testConnection() async {
     try {
       var response = await http.get(
         Uri.parse('$serverUrl/health'),
       ).timeout(const Duration(seconds: 5));
-      
+
       if (response.statusCode == 200) {
         var data = json.decode(response.body);
-        
+
         return {
           'success': true,
           'message': 'Connected to server successfully',
@@ -532,10 +584,7 @@ class ApiService {
             '3. IP address is correct'
       };
     } catch (e) {
-      return {
-        'success': false,
-        'message': 'Error: $e'
-      };
+      return {'success': false, 'message': 'Error: $e'};
     }
   }
 }
