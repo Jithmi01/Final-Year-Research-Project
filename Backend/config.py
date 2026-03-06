@@ -101,7 +101,6 @@ class Config:
     VOICE_MODEL_NAME = os.getenv('MODEL_NAME', 'speechbrain/spkrec-ecapa-voxceleb')
     VOICE_MODEL_SAVE_DIR = os.getenv('MODEL_SAVE_DIR', os.path.join(BASE_DIR, 'pretrained_models'))
     
-    WHISPER_MODEL_SIZE = os.getenv('WHISPER_MODEL_SIZE', 'base')
     # ========================================================================
     # TESSERACT CONFIG (Smart Wallet OCR)
     # ========================================================================

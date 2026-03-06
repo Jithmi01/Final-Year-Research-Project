@@ -42,7 +42,7 @@ from routes.attributes_routes import attributes_bp
 # Face Detection - INTEGRATED
 from routes.integrated_face_routes import integrated_face_bp, init_integrated_service
 
-# Voice Recognition
+# ⭐ NEW: Voice Recognition
 from routes.voice_routes import init_voice_routes
 from services.voice_service import VoiceRecognitionService
 from utils.audio_processor import AudioProcessor
@@ -98,24 +98,24 @@ logger = logging.getLogger(__name__)
 
 def create_app():
     """Create and configure the integrated Flask application"""
-
+    
     app = Flask(__name__)
     app.config.from_object(Config)
-
+    
     # Enable CORS for all routes
     CORS(app, resources={r"/*": {"origins": "*"}})
-
+    
     # ========================================================================
     # INITIALIZE SYSTEMS
     # ========================================================================
-
+    
     logger.info("="*80)
     logger.info("  🚀 INTEGRATED SYSTEM - STARTING UP")
     logger.info("="*80)
-
+    
     # Create required directories
     Config.create_required_directories()
-
+    
     # Initialize Database (Firebase/SQLite)
     if Config.DATABASE_TYPE == 'firebase':
         logger.info("Initializing Firebase Firestore Database...")
@@ -129,10 +129,10 @@ def create_app():
         init_all_databases()
         ensure_database_ready()
         logger.info("✓ SQLite Database ready")
-
+    
     # Verify Tesseract for OCR
     tesseract_ok = Config.verify_tesseract()
-
+    
     # ========================================================================
     # INITIALIZE MONGODB (Face + Voice Recognition)
     # ========================================================================
@@ -142,34 +142,34 @@ def create_app():
         mongo_client = MongoClient(Config.MONGODB_URI, serverSelectionTimeoutMS=5000)
         mongo_client.admin.command('ping')
         db = mongo_client[Config.MONGODB_DB_NAME]
-
+        
         # Check collections
         face_users_count = db.get_collection('users').count_documents({})
         voice_users_count = db.get_collection(Config.VOICE_COLLECTION_NAME).count_documents({})
-
+        
         logger.info(f"✓ MongoDB connected | Database: {Config.MONGODB_DB_NAME}")
         logger.info(f"  - Face Recognition Users: {face_users_count}")
         logger.info(f"  - Voice Recognition Users: {voice_users_count}")
-
+        
         mongodb_ready = True
         mongo_client.close()
-
+        
     except Exception as e:
         logger.error(f"✗ MongoDB connection failed: {e}")
         mongodb_ready = False
-
+    
     # ========================================================================
-    # INITIALIZE VOICE RECOGNITION SERVICES
+    # ⭐ INITIALIZE VOICE RECOGNITION SERVICES
     # ========================================================================
     voice_recognition_ready = False
     audio_processor = None
     voice_service = None
-
+    
     try:
         logger.info("="*60)
         logger.info("🎤 Initializing Voice Recognition Services")
         logger.info("="*60)
-
+        
         # Validate voice config
         is_valid, errors = Config.validate_voice_config()
         if not is_valid:
@@ -177,63 +177,32 @@ def create_app():
             for error in errors:
                 logger.error(f"  - {error}")
             raise Exception("Voice configuration validation failed")
-
+        
         # Initialize Audio Processor
         logger.info("🎵 Initializing audio processor...")
         audio_processor = AudioProcessor(target_sr=16000)
         logger.info("✅ Audio processor ready")
-
+        
         # Initialize Voice Recognition Service
         logger.info("🧠 Loading voice recognition model...")
         logger.info("⏳ First run: Downloading model (~500MB, 2-5 minutes)")
-
+        
         voice_service = VoiceRecognitionService(
             model_name=Config.VOICE_MODEL_NAME,
             model_save_dir=Config.VOICE_MODEL_SAVE_DIR
         )
-
+        
         logger.info("✅ Voice recognition service initialized")
         voice_recognition_ready = True
         logger.info("="*60)
-
+        
     except Exception as e:
         logger.error(f"✗ Voice recognition initialization failed: {e}")
         logger.error("  Voice recognition features will be disabled")
         import traceback
         logger.error(traceback.format_exc())
         voice_recognition_ready = False
-
-    # ========================================================================
-    # NEW: INITIALIZE TRANSLATION SERVICE (Whisper STT + Sinhala Translation)
-    # ========================================================================
-    translation_service = None
-    translation_ready = False
-
-    try:
-        logger.info("="*60)
-        logger.info("🌐 Initializing Translation Service")
-        logger.info("="*60)
-
-        from services.translation_service import TranslationService
-
-        # 'base' model (~145 MB) — good balance of speed & accuracy on CPU.
-        # Change to 'small' or 'medium' for better multilingual accuracy
-        # if you have more RAM/GPU available.
-        translation_service = TranslationService(
-            whisper_model_size=Config.WHISPER_MODEL_SIZE
-        )
-
-        translation_ready = True
-        logger.info("✅ Translation Service initialized")
-        logger.info("="*60)
-
-    except Exception as e:
-        logger.error(f"✗ Translation Service initialization failed: {e}")
-        logger.error("  Translation feature will be disabled")
-        import traceback
-        logger.error(traceback.format_exc())
-        translation_ready = False
-
+    
     # ========================================================================
     # INITIALIZE INTEGRATED FACE DETECTION
     # ========================================================================
@@ -246,13 +215,13 @@ def create_app():
     except Exception as e:
         logger.error(f"✗ Integrated Face Detection failed: {e}")
         integrated_face_ready = False
-
+    
     logger.info("="*80)
-
+    
     # ========================================================================
     # REGISTER BLUEPRINTS
     # ========================================================================
-
+    
     # Smart Wallet Blueprints (Always available)
     app.register_blueprint(bill_bp)
     app.register_blueprint(wallet_bp)
@@ -261,57 +230,56 @@ def create_app():
     app.register_blueprint(analytics_bp)
     app.register_blueprint(document_bp)
     logger.info("✓ Smart Wallet blueprints registered")
-
+    
     # Blind Assistant Blueprints (Optional)
     if age_gender_available:
         app.register_blueprint(age_gender_bp, url_prefix='/api/age-gender')
         logger.info("✓ Age & Gender blueprint registered")
-
+    
     if face_recognition_available:
         app.register_blueprint(face_recognition_bp, url_prefix='/api/face-recognition')
         logger.info("✓ Face Recognition blueprint registered")
-
+    
     if attributes_available:
         app.register_blueprint(attributes_bp, url_prefix='/api/attributes')
         logger.info("✓ Attributes blueprint registered")
-
+    
     # Integrated Face Detection
     app.register_blueprint(integrated_face_bp, url_prefix='/api/integrated-face')
     if integrated_face_ready:
         logger.info("  ✓ Integrated Face Detection (LIVE) - ACTIVE")
-
-    # Voice Recognition Blueprint
+    
+    # ⭐ Voice Recognition Blueprints
     if voice_recognition_ready and mongodb_ready:
         try:
             voice_bp = init_voice_routes(
                 audio_processor=audio_processor,
                 voice_service=voice_service,
-                translation_service=translation_service,   # NEW: pass translation service
                 mongo_uri=Config.MONGODB_URI,
                 db_name=Config.MONGODB_DB_NAME,
                 collection_name=Config.VOICE_COLLECTION_NAME,
                 config=Config
             )
-
+            
             app.register_blueprint(voice_bp)
             logger.info("✓ Voice Recognition blueprint registered")
             logger.info("  Routes:")
-            logger.info("    POST /api/voice/register   - Register new user")
-            logger.info("    POST /api/voice/identify   - Identify speaker + Sinhala translation")
-            logger.info("    POST /api/voice/verify     - Verify speaker identity")
-            logger.info("    GET  /api/voice/users      - Get all registered users")
+            logger.info("    POST /api/voice/register - Register new user")
+            logger.info("    POST /api/voice/identify - Identify speaker")
+            logger.info("    POST /api/voice/verify - Verify speaker identity")
+            logger.info("    GET  /api/voice/users - Get all registered users")
             logger.info("    DELETE /api/voice/users/<name> - Delete user")
-
+            
         except Exception as e:
             logger.error(f"✗ Voice Recognition blueprint registration failed: {e}")
             voice_recognition_ready = False
     else:
         logger.warning("⚠ Voice Recognition disabled (services not ready)")
-
+    
     # ========================================================================
     # ROOT ENDPOINTS
     # ========================================================================
-
+    
     @app.route('/', methods=['GET'])
     def root():
         """Root endpoint - API overview"""
@@ -320,10 +288,10 @@ def create_app():
             'face_recognition': 'available' if face_recognition_available else 'disabled',
             'attributes': 'available' if attributes_available else 'disabled'
         }
-
+        
         return jsonify({
             'message': 'Integrated Smart Wallet + Blind Assistant + Voice Recognition API',
-            'version': '2.3.0',
+            'version': '2.2.0',
             'status': 'running',
             'database': Config.DATABASE_TYPE.upper(),
             'systems': {
@@ -350,8 +318,7 @@ def create_app():
                 },
                 'voice_recognition': {
                     'status': 'active' if voice_recognition_ready else 'unavailable',
-                    'description': 'Speaker identification, verification, and Sinhala translation',
-                    'translation': 'active' if translation_ready else 'disabled',
+                    'description': 'Speaker identification and verification',
                     'endpoints': [
                         '/api/voice/register',
                         '/api/voice/identify',
@@ -378,7 +345,7 @@ def create_app():
                 'voice_recognition_health': '/health/voice'
             }
         }), 200
-
+    
     @app.route('/health', methods=['GET'])
     def health_check():
         """Complete health check for all systems"""
@@ -394,9 +361,7 @@ def create_app():
                 'voice_recognition': {
                     'status': 'active' if voice_recognition_ready else 'disabled',
                     'mongodb': 'connected' if mongodb_ready else 'disconnected',
-                    'model': Config.VOICE_MODEL_NAME if voice_recognition_ready else None,
-                    'translation': 'active' if translation_ready else 'disabled',
-                    'whisper_model': Config.WHISPER_MODEL_SIZE if translation_ready else None
+                    'model': Config.VOICE_MODEL_NAME if voice_recognition_ready else None
                 },
                 'blind_assistant': {
                     'services': [s for s, a in [
@@ -408,7 +373,7 @@ def create_app():
                 }
             }
         }), 200
-
+    
     @app.route('/health/voice', methods=['GET'])
     def health_voice():
         """Voice Recognition specific health check"""
@@ -418,7 +383,7 @@ def create_app():
                 'status': 'disabled',
                 'message': 'Voice recognition services not initialized'
             }), 503
-
+        
         try:
             # Test MongoDB connection
             mongo_client = MongoClient(Config.MONGODB_URI, serverSelectionTimeoutMS=2000)
@@ -426,7 +391,7 @@ def create_app():
             db = mongo_client[Config.MONGODB_DB_NAME]
             user_count = db[Config.VOICE_COLLECTION_NAME].count_documents({})
             mongo_client.close()
-
+            
             return jsonify({
                 'system': 'voice_recognition',
                 'status': 'healthy',
@@ -434,10 +399,6 @@ def create_app():
                 'database': Config.MONGODB_DB_NAME,
                 'collection': Config.VOICE_COLLECTION_NAME,
                 'registered_users': user_count,
-                'translation': {
-                    'status': 'active' if translation_ready else 'disabled',
-                    'whisper_model': Config.WHISPER_MODEL_SIZE if translation_ready else None
-                },
                 'configuration': {
                     'similarity_threshold': Config.SIMILARITY_THRESHOLD,
                     'min_audio_duration': f"{Config.MIN_AUDIO_DURATION}s",
@@ -445,18 +406,18 @@ def create_app():
                     'model': Config.VOICE_MODEL_NAME
                 }
             }), 200
-
+            
         except Exception as e:
             return jsonify({
                 'system': 'voice_recognition',
                 'status': 'unhealthy',
                 'error': str(e)
             }), 503
-
+    
     # ========================================================================
     # ERROR HANDLERS
     # ========================================================================
-
+    
     @app.errorhandler(404)
     def not_found(error):
         return jsonify({
@@ -468,7 +429,7 @@ def create_app():
                 'blind_assistant': '/api/age-gender, /api/face-recognition, /api/attributes'
             }
         }), 404
-
+    
     @app.errorhandler(500)
     def internal_error(error):
         logger.error(f"Internal Server Error: {error}")
@@ -476,14 +437,14 @@ def create_app():
             'error': 'Internal server error',
             'message': 'An unexpected error occurred. Please check server logs.'
         }), 500
-
+    
     @app.errorhandler(413)
     def request_entity_too_large(error):
         return jsonify({
             'error': 'File too large',
             'message': f'Maximum file size is {Config.MAX_CONTENT_LENGTH / (1024*1024)}MB'
         }), 413
-
+    
     return app
 
 # ============================================================================
@@ -509,14 +470,13 @@ if __name__ == "__main__":
     print("     ✓ Currency Detection")
     print("     ✓ Expense Analytics Dashboard")
     print("     ✓ Voice Recognition (Register/Identify)")
-    print("     ✓ Sinhala Translation (Whisper STT + Google Translate)")
     if age_gender_available:
         print("     ✓ Age & Gender Detection")
     if face_recognition_available:
         print("     ✓ Face Recognition")
     if attributes_available:
         print("     ✓ Attribute Detection")
-
+    
     print("\n  🌐 Server Info:")
     print(f"     URL: http://{Config.API_HOST}:{Config.API_PORT}")
     print(f"     Debug Mode: {Config.DEBUG}")
@@ -526,7 +486,7 @@ if __name__ == "__main__":
     print("     Smart Wallet: /api/bill, /api/wallet, /api/currency")
     print("     Voice Recognition: /api/voice/register, /api/voice/identify")
     print("="*80 + "\n")
-
+    
     app.run(
         host=Config.API_HOST,
         port=Config.API_PORT,
